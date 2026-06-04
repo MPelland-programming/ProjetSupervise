@@ -12,6 +12,16 @@ class MainExtractor:
     """
     This class creates a text file for each .cha file in the organized folder. The text file contains
     the raw transcript of the conversation, without any annotations.
+
+    CLAN and the virtual environment don't work well together, can use the following lines from outside
+    the virtual environment to run the code:
+
+    import sys
+    sys.path.append('~/ProjetSupervise/code/ProjetSupervise') #modify path accordingly.
+    import organizer
+    define organized_folder
+    me = organizer.MainExtractor(organized_folder)
+    me.cha2text()
     """
     def __init__(self, organized_folder:str, chat_path = "/home/hereinlies/Documents/Programs/unix-clan/unix/bin") -> None:
         """
@@ -26,7 +36,7 @@ class MainExtractor:
         ladd = self.get_participant_info(current_file)
         return(ladd)
 
-    def format_line(self, infolist, current_file):
+    def format_line(self, infolist, current_file,skip = 0):
         # foramt participant info into a dictionary to add to the temp_out list.
         _,_,task,_,_,corpus,name = current_file.stem.split("_")
         lang,_,code,age,sex,_,_,role,education,_,_= infolist
@@ -34,6 +44,10 @@ class MainExtractor:
         if age != "":
             yy, rest = age.split(";")
             mm, dd = rest.split(".")
+
+            if dd == "": dd = "0"
+            if mm == "": print(f"Warning: missing month information for file {current_file}")
+            if yy == "": print(f"Warning: missing year information for file {current_file}")
 
             agem = str(12*int(yy) + int(mm) + int(dd)/30)
 
@@ -46,6 +60,7 @@ class MainExtractor:
                     ,"code": code
                     ,"role": role
                     ,"task": task
+                    ,"skip": skip
                     ,"file": str(current_file)
                     }
 
@@ -70,8 +85,10 @@ class MainExtractor:
                     templang= [x.strip() for x in line[11:].split(",")]
 
                     if len(templang) > 1 or templang[0].lower() != 'eng':
+                        print(f"Skipping file {current_file} because it contains languages other than English: {templang}")
+                        infolist = "||||||||||".split("|")
+                        lparticipant.append(self.format_line(infolist, current_file,skip = 1))
                         break
-                        ################################################################## add line for logging this event
 
                 if line.startswith('@Participants'):
                     #extract the participant codes and their roles (e.g., mother, father, target_child) from the @Participants line
@@ -86,10 +103,39 @@ class MainExtractor:
                     if infolist[2].lower() in code_list:
                         lparticipant.append(self.format_line(infolist,current_file))
 
+                if line.startswith('*'):
+                    break
+
         return lparticipant
 
     def gen_out_dataframe(self):
-        return pd.DataFrame(self.temp_out)
+        df = pd.DataFrame(self.temp_out)
+        ufiles = list(set(df["file"]))
+
+        for uf in ufiles:
+            mask_has = (df["file"] == uf) & (df["age_months"] != "")
+            mask_missing = (df["file"] == uf) & (df["age_months"] == "")
+            tempage = df.loc[mask_has, "age_months"]
+            df.loc[mask_missing, "age_months"] = tempage.values[0] if len(tempage) > 0 else ""
+
+        #Mean value of age fro pre-k of the ehs corpus.
+        mask_ages = df['file'].str.contains(r'pk_[a-zA-Z]+_ehs', na=False) & (df["age_months"] != "")
+        mean_age_ehs = df.loc[mask_ages, "age_months"].astype(float).mean()
+
+        #For corpora with missing age in transcript, but present in file or folder name
+        mask_has = df[df["age_months"] == ""].index
+        for ll in mask_has:
+            fileparts = df.loc[ll, "file"].split("_")
+
+            if fileparts[-2] in ("champaign", "newmanratner", "rollins"):
+                df.loc[ll, "age_months"] = fileparts[3]
+            elif fileparts[-2] in ("ehs"):
+                if fileparts[3] =="pk":
+                    df.loc[ll, "age_months"] = mean_age_ehs
+                else:
+                    df.loc[ll, "age_months"] = fileparts[3]
+
+        return df
 
     def build_participant_doc(self, output_file):
         """
@@ -105,20 +151,20 @@ class MainExtractor:
 
         df.to_csv(output_file, sep="\t", index=False)
 
-    def cha2text(self, output_folder,gen_participant_doc = True):
+    def cha2text(self, output_folder, gen_participant_doc = True):
         """
-        Function that creates a .txt file for each .cha file in the organized folder.
+        Function that creates a processed file for each .cha file in the organized folder.
         The .txt file contains the raw transcript of the conversation, without any annotations.
         By default, it also creates a participant document that contains the participant information for each file.
         """
         #make sure the output folder exists
-        os.makedirs(output_folder, exist_ok=True)
+        #os.makedirs(output_folder, exist_ok=True)
 
         if gen_participant_doc:
             self.build_participant_doc(f"{output_folder}/participants_info.txt")
 
         for current_file in self.file_list:
-            subprocess.run([f"{self.chat_path}/flo","+cr", "+t*", str(current_file), f"{output_folder}/{current_file.stem}.txt"])
+            subprocess.run([f"{self.chat_path}/flo", "-t%", str(current_file)])
 
 
 class MainOrganizer:
@@ -184,7 +230,7 @@ class MainOrganizer:
                 _time = "20"
                 _task = "toyplay"
                 _other = "0"
-                _name = file.stem.lower()[-2]
+                _name = file.stem.lower()
                 fname = f"{corpus}_{str(_count)}_{_task}_{_time}_{_other}_{corpus}_{_name}.cha"
 
                 shutil.copy(file, self.destination_folder / fname)
@@ -193,7 +239,7 @@ class MainOrganizer:
                 _time = "28"
                 _task = "toyplay"
                 _other = "0"
-                _name = file.stem.lower()
+                _name = file.stem.lower()[:-2]
                 fname = f"{corpus}_{str(_count)}_{_task}_{_time}_{_other}_{corpus}_{_name}.cha"
 
                 shutil.copy(file, self.destination_folder / fname)
@@ -211,7 +257,7 @@ class MainOrganizer:
                 _time = "28"
                 _task = "book"
                 _other = "0"
-                _name = file.stem.lower()[-2]
+                _name = file.stem.lower()[:-2]
                 fname = f"{corpus}_{str(_count)}_{_task}_{_time}_{_other}_{corpus}_{_name}.cha"
 
                 shutil.copy(file, self.destination_folder / fname)
