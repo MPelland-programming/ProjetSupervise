@@ -17,20 +17,23 @@ class MainExtractor:
     the virtual environment to run the code:
 
     import sys
-    sys.path.append('~/ProjetSupervise/code/ProjetSupervise') #modify path accordingly.
+    sys.path.append('/home/hereinlies/Documents/Documents/Ecole/HEC/ProjetSupervise/code/ProjetSupervise') #modify path accordingly.
     import organizer
-    define organized_folder
+    organized_folder = "/home/hereinlies/Downloads/Temp"
     me = organizer.MainExtractor(organized_folder)
-    me.cha2text()
+    me.cha2text("/home/hereinlies/Downloads/Text", gen_participant_doc = False)
     """
-    def __init__(self, organized_folder:str, chat_path = "/home/hereinlies/Documents/Programs/unix-clan/unix/bin") -> None:
+    def __init__(self, organized_folder:str, text_folder:str, chat_path = "/home/hereinlies/Documents/Programs/unix-clan/unix/bin") -> None:
         """
         :param organized_folder:
         :param chat_path: path to the CHAT program on the computer
         """
         self.temp_out = [] #list that will take input before being transformed into a dataframe and then outputted as a .txt file.
         self.file_list = [ff for ff in (Path(organized_folder)).rglob("*.cha")]
+        self.organized_folder = organized_folder
         self.chat_path = chat_path
+        self.text_folder = text_folder
+        self.model_file = str(Path(text_folder+"/model.txt"))
 
     def get_single_file_participant_info(self,current_file):
         ladd = self.get_participant_info(current_file)
@@ -61,7 +64,7 @@ class MainExtractor:
                     ,"role": role
                     ,"task": task
                     ,"skip": skip
-                    ,"file": str(current_file)
+                    ,"file": str(current_file.stem)
                     }
 
         return output
@@ -137,7 +140,7 @@ class MainExtractor:
 
         return df
 
-    def build_participant_doc(self, output_file):
+    def build_participant_doc(self, output_file=self.model_file):
         """
         Function that returns the output file
         """
@@ -151,7 +154,9 @@ class MainExtractor:
 
         df.to_csv(output_file, sep="\t", index=False)
 
-    def cha2text(self, output_folder, gen_participant_doc = True):
+        self.output_file = output_file
+
+    def cha2text(self, output_folder=self.text_folder, gen_participant_doc = False, output_file = ""):
         """
         Function that creates a processed file for each .cha file in the organized folder.
         The .txt file contains the raw transcript of the conversation, without any annotations.
@@ -160,11 +165,16 @@ class MainExtractor:
         #make sure the output folder exists
         #os.makedirs(output_folder, exist_ok=True)
 
+        if gen_participant_doc & (not output_file):
+            raise ValueError("No name was provided for generating the participant document. ")
+
         if gen_participant_doc:
             self.build_participant_doc(f"{output_folder}/participants_info.txt")
 
         for current_file in self.file_list:
             subprocess.run([f"{self.chat_path}/flo", "-t%", str(current_file)])
+
+        subprocess.run(f"mv {self.organized_folder}/*.flo.cex {output_folder}/", shell=True)
 
 
 class MainOrganizer:
