@@ -7,6 +7,8 @@ import subprocess
 
 from zope.interface import named
 
+from local_main import model_folder
+
 
 class MainExtractor:
     """
@@ -23,7 +25,7 @@ class MainExtractor:
     me = organizer.MainExtractor(organized_folder)
     me.cha2text("/home/hereinlies/Downloads/Text", gen_participant_doc = False)
     """
-    def __init__(self, organized_folder:str, text_folder:str, chat_path = "/home/hereinlies/Documents/Programs/unix-clan/unix/bin") -> None:
+    def __init__(self, organized_folder:str, text_folder:str, model_folder:str, chat_path = "/home/hereinlies/Documents/Programs/unix-clan/unix/bin") -> None:
         """
         :param organized_folder:
         :param chat_path: path to the CHAT program on the computer
@@ -33,7 +35,7 @@ class MainExtractor:
         self.organized_folder = organized_folder
         self.chat_path = chat_path
         self.text_folder = text_folder
-        self.model_file = str(Path(text_folder+"/model.txt"))
+        self.model_folder = model_folder
 
     def get_single_file_participant_info(self,current_file):
         ladd = self.get_participant_info(current_file)
@@ -140,7 +142,7 @@ class MainExtractor:
 
         return df
 
-    def build_participant_doc(self, output_file=self.model_file):
+    def build_participant_doc(self, output_file="model.csv"):
         """
         Function that returns the output file
         """
@@ -150,13 +152,15 @@ class MainExtractor:
         for current_file in self.file_list:
             self.add_participant_info(current_file)
 
+        output_file = str(Path(model_folder,output_file))
+
         df = self.gen_out_dataframe()
 
-        df.to_csv(output_file, sep="\t", index=False)
+        df.to_csv(output_file, index=False)
 
         self.output_file = output_file
 
-    def cha2text(self, output_folder=self.text_folder, gen_participant_doc = False, output_file = ""):
+    def cha2text(self, output_folder="", gen_participant_doc = False, output_file = "model.csv"):
         """
         Function that creates a processed file for each .cha file in the organized folder.
         The .txt file contains the raw transcript of the conversation, without any annotations.
@@ -169,7 +173,10 @@ class MainExtractor:
             raise ValueError("No name was provided for generating the participant document. ")
 
         if gen_participant_doc:
-            self.build_participant_doc(f"{output_folder}/participants_info.txt")
+            self.build_participant_doc(output_file = output_file)
+
+        if not output_folder:
+            output_folder = self.text_folder
 
         for current_file in self.file_list:
             subprocess.run([f"{self.chat_path}/flo", "-t%", str(current_file)])

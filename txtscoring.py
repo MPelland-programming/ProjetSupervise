@@ -4,23 +4,22 @@ import txtpreprocess
 from pathlib import Path
 import pandas as pd
 
+
 class sentence_scoring:
-    def __init__(self,participant_info:dataframe, list_preprocessing_steps:list,folder_path:str):
-        self.participant_info = participant_info
-        self.list_preprocessing_steps = list_preprocessing_steps
-        self.preprocessor = txtpreprocess.TextExtraction()
-        self.folder_path = str(Path(participant_info).parent)
+    def __init__(self,participant_file, text_folder, extractor,folder_path:str):
+        self.participant_df = pd.read_csv(participant_file)
+        self.extractor = extractor
+        self.text_folder = text_folder
         self.sentences = []
         self.code = []
         self.file = []
 
 
     def preprocess_sentences(self):
-        for ii,ll in self.participant_info.iterrows():
-            cc = ll["code"]
-            ff = ll["file"]
-            temp = self.preprocessor.get_clean_text(ff, cc, method_list = self.list_preprocessing_steps, print_warnings = True)
-
+        for ff,cc in zip(self.participant_df["file"],self.participant_df["code"]):
+            fpath = ff
+            temp = self.extractor.serial_clean( self.participant_df, self.text_folder)
+            serial_preprocess(self, task: str, participant_df, text_folder)
             tcode = []
             tsentence = []
             for tt in temp:
@@ -31,6 +30,9 @@ class sentence_scoring:
             tfile = len(tcode)*ff
 
 
+
+#tfile = participant_df["file"].iloc[0]
+#fext = ''.join(list(Path(text_folder).glob(f"{tfile}.*"))[0].suffixes)
 
 #modelname = "mistralai/Mistral-7B-v0.1"#### change
 

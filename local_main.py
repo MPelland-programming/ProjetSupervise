@@ -1,5 +1,5 @@
 import organizer
-import loadingfunctions as lf
+import generalfunctions as lf
 import txtpreprocess
 import txtpreprocess as tp
 
@@ -11,6 +11,7 @@ task_score = False
 source_folder = "/home/hereinlies/Downloads/Data"
 organized_folder = "/home/hereinlies/Downloads/Temp"
 text_folder = "/home/hereinlies/Downloads/Text"
+model_folder = "/home/hereinlies/Downloads/Models"
 preprocessing_step_list = ["m01"]                                #Sets the list of text prepocessing steps
 #participant_doc = text_folder+"/model.txt"  #This should be in the same director as text_folder
 
@@ -20,7 +21,7 @@ if task_organize:
     mo.organize()
 
     #Extract stat model variables
-    me = organizer.MainExtractor(organized_folder,text_folder)
+    me = organizer.MainExtractor(organized_folder,text_folder,model_folder)
     me.build_participant_doc()
 
     #step 2 of organizing the data
@@ -29,6 +30,6 @@ if task_organize:
     else:
         me.cha2text(text_folder,gen_participant_doc = False)
 
-if task_score:
-    preprocessor = tp.TextExtraction(method_list=preprocessing_step_list)
-    file_code = lf.get_file_and_pcodes(participant_doc)
+#if task_score:
+#    preprocessor = tp.TextExtraction(method_list=preprocessing_step_list)
+#    file_code = lf.get_file_and_pcodes(participant_doc)
