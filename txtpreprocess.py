@@ -42,18 +42,15 @@ class TextExtraction:
             self.method_list = method_list
 
 
-    def m01(self, line:str, prevtier:str, code_list:list):
+    def m01(self, line:str, prevtier:str):
         """
         method 1: extract the %flo line from .cha. but append the code of the main tier.
         """
         tier, text = line.split(':',maxsplit = 1)
 
         if tier.startswith("*"):
-            if tier[1:].lower() in code_list:
                 return [tier, ""]
-            else :
-                return ["",""]
-        elif tier.startswith("%flo") and prevtier[1:].lower() in code_list:
+        elif tier.startswith("%flo"):
             return ["", f"{prevtier}:{text.strip()}"]
 
         return ["",""]
@@ -111,15 +108,18 @@ class TextExtraction:
             for line in f:
                 #Loops through preprocessing steps
                 for metho in method_list:
-                    prevtier,line = self.dict_methods[metho](line,prevtier,code_list)
+                    prevtier,line = self.dict_methods[metho](line,prevtier)
                     if not line:
                         break
 
                 if line:
                     if task == "count":
-                        numline += 1
+                        tier, _ = line.split(':', maxsplit=1)
+                        if tier[1:].lower() in code_list:
+                            numline += 1
                     else:
                         cleaned_text.append(line)
+
         if task == "count":
             return numline
         elif task=="clean":
@@ -156,13 +156,20 @@ class TextExtraction:
         tfile = participant_df["file"].iloc[0]
         fext = ''.join(list(Path(text_folder).glob(f"{tfile}.*"))[0].suffixes) #get the suffix
 
-        tcode = []
-        tsentence = []
-
         for pp,code_list in zip(participant_df["file"], participant_df["code"]):
             filepath = str(Path(text_folder,pp).with_suffix(fext))
 
-            tsentence.append(self.single_preprocess("clean",filepath,code_list))
+            temp = self.single_preprocess("clean",filepath,code_list)
+
+            tcode = []
+            tsentence = []
+
+            for tt in temp:
+                tc, ts = tt.split(":", maxsplit=1)
+                tcode.append(tc[1:])
+                tsentence.append(ts)
+
+
 
         return
 
