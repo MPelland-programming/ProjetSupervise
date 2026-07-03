@@ -4,6 +4,8 @@ import generalfunctions as gf
 import pandas as pd
 from pathlib import Path
 import txtpreprocess as txtp
+import txtscoring as txtsc
+from transformers import AutoTokenizer, MistralForCausalLM
 
 ## Command line input ##
 parser = argparse.ArgumentParser(
@@ -75,3 +77,11 @@ if task == "count":
     myallocator = txtp.Allocator(transcript_file,text_folder,extractor)
     myallocator.allocate(32768)
     myallocator.write_allocation(config)
+
+if task == "clean":
+    modelname = "mistralai/Mistral-7B-v0.3"
+    tokenizer = AutoTokenizer.from_pretrained(modelname,use_fast=True)
+    model = MistralForCausalLM.from_pretrained(modelname)
+
+    scorer = txtsc.SentenceScorer(transcript_file, text_folder, extractor, tokenizer)
+    scorer.gen_dataset_and_dataloader(context_length=0)                    ########################################### change to set it in config file

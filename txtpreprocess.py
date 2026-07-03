@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import yaml
+import ast
 
 def get_file_and_pcodes(participant_doc):
     """
@@ -156,22 +157,34 @@ class TextExtraction:
         tfile = participant_df["file"].iloc[0]
         fext = ''.join(list(Path(text_folder).glob(f"{tfile}.*"))[0].suffixes) #get the suffix
 
+        ffile = []
+        fspeaker = []
+        fsentence = []
+        fcode = []
+
+
         for pp,code_list in zip(participant_df["file"], participant_df["code"]):
             filepath = str(Path(text_folder,pp).with_suffix(fext))
 
             temp = self.single_preprocess("clean",filepath,code_list)
 
-            tcode = []
+            tspeaker = []
             tsentence = []
 
             for tt in temp:
                 tc, ts = tt.split(":", maxsplit=1)
-                tcode.append(tc[1:])
+                tspeaker.append(tc[1:].lower())
                 tsentence.append(ts)
 
+            tfile = [pp] *len(tsentence)
+            tcode = [code_list for _ in range(len(tsentence))]
 
+            ffile.extend(tfile)
+            fspeaker.extend(tspeaker)
+            fsentence.extend(tsentence)
+            fcode.extend(tcode)
 
-        return
+        return ffile, fspeaker, fsentence, fcode
 
 class Allocator():
     def __init__(self, participant_df, text_folder, extractor):
@@ -252,30 +265,3 @@ class Allocator():
 
             with open(yamlfname, 'w') as outfile:
                 yaml.dump(baseconfig, outfile, default_flow_style=False, sort_keys=False)
-
-
-
-
-
-
-
-#data = {
-#    "mode" : 'separate-outputs',
-#    "parent" : 'd93fca33ec026010b521b3587beb5897dff43189a8e1b4da078846c40d680dcei0',
-#    "postage" : 690,
-#    "inscriptions" : [
-#        {"file": "mango.avif", "metadata": {"title": "test"}},
-#        {"file": "mango2.avif", "metadata": {"title": "test"}},
-#    ]
-#}
-
-
-
-
-
-
-
-
-
-
-
