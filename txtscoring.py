@@ -12,8 +12,9 @@ class ChildesDataset(Dataset):
         self.speakers = speakers
         self.encoded_sentences = encoded_sentences
         self.filtidx = filtidx
-        self.bos = tokenizer.bos_token_id
         self.context_length = context_length
+        self.dtype = encoded_sentences["input_ids"][0].dtype
+        self.bos = torch.tensor([tokenizer.bos_token_id],dtype=self.dtype)
 
     def __len__(self):
         return len(self.filtidx)
@@ -32,20 +33,15 @@ class ChildesDataset(Dataset):
         tidx = self.filtidx[idx]
 
         if self.context_length == 0:
-            ii = [self.bos]
-            ii.extend(self.encoded_sentences["input_ids"][tidx])
-            am = [1]
-            am.extend(self.encoded_sentences["attention_mask"][tidx])
-
-            t_enc = {"input_ids": ii, "attention_mask": am}
-
-            out = (  self.files[tidx]
-                    ,self.speakers[tidx]
-                    ,t_enc
-                    , 0
-                    )
+            input_ids = torch.cat((self.bos, self.encoded_sentences["input_ids"][tidx]))
         else :
             pass####################################################################implementation awaiting
+
+        out = (self.files[tidx]
+                   , self.speakers[tidx]
+                   , input_ids
+                   , self.context_length
+               )
 
         return out
 
@@ -56,27 +52,28 @@ def collate_fn(batch):
     :param batch: list of tuples (file, speaker, t_enc, stidx2score)
     :return: dict of padded input_ids, attention_mask, and list of files and speakers
     """
-    files, speakers, t_encs, stidx2scores = zip(*batch)
+    files, speakers, raw_ids, stidx2scores = zip(*batch)
 
-    max_len = max(len(t_enc["input_ids"]) for t_enc in t_encs)
+    rawlen = [len(xx) for xx in raw_ids]
+    maxlen = max(rawlen)
+    dtype = raw_ids[0].dtype
 
-    padded_input_ids = []
-    padded_attention_mask = []
+    input_ids = torch.zeros(len(raw_ids), maxlen, dtype=dtype)
+    attention_mask = torch.zeros(input_ids.shape, dtype=torch.int8)
 
-    for t_enc in t_encs:
-        input_ids = t_enc["input_ids"]
-        attention_mask = t_enc["attention_mask"]
-
+    for ii,rlen,renc in zip(range(0,len(raw_ids)),rawlen,raw_ids):
         # Pad input_ids and attention_mask
-        pad_length = max_len - len(input_ids)
-        padded_input_ids.append(input_ids + [0] * pad_length)  # Assuming 0 is the padding token ID
-        padded_attention_mask.append(attention_mask + [0] * pad_length)
+        pad_len = maxlen - rlen
+
+        input_ids[ii,:] = torch.cat((renc, torch.zeros(pad_len,dtype=torch.int64)))
+        attention_mask[ii,:] = torch.cat((torch.ones(rlen,dtype=torch.int8), torch.zeros(pad_len,dtype=torch.int8)))
+
 
     return {
         "files": files,
         "speakers": speakers,
-        "input_ids": torch.tensor(padded_input_ids),
-        "attention_mask": torch.tensor(padded_attention_mask),
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
         "stidx2scores": stidx2scores
     }
 
@@ -104,7 +101,7 @@ class SentenceScorer:
                                                 self.participant_df
                                                 ,self.text_folder)
 
-        filtidx = [ii for ii, (ss , cc) in enumerate(zip(fspeaker,fcode)) if ss in cc]
+        filtidx = [ii for ii, (ss , cc) in enumerate(zip(speakers,codes)) if ss in cc]
 
         if write2self:
             self.files = files
@@ -120,7 +117,11 @@ class SentenceScorer:
         Tokenizes the sentences in self.sentences using the tokenizer specified in self.tokenizer.
         :return: a list of tokenized sentences including mask and lenght, but without special tokens.
         """
-        encoded_sentences = self.tokenizer(self.sentences,add_special_tokens=False,return_length = True)
+        list_encoded_sentences = self.tokenizer(self.sentences,add_special_tokens=False,return_length = True, return_attention_mask=False)
+
+        encoded_sentences = {}
+        encoded_sentences["input_ids"] = [torch.tensor(les,dtype=torch.int64) for les in list_encoded_sentences["input_ids"]]
+        encoded_sentences["length"] = list_encoded_sentences["length"]
 
         if write2self:
             self.encoded_sentences = encoded_sentences
@@ -140,19 +141,40 @@ class SentenceScorer:
 
         self.filtidx=nord_idx
 
-    def gen_dataset_and_dataloader(self,context_length=0,batch_size=1):
-        dataset = ChildesDataset( self.files
+    def gen_dataset_and_dataloader(self,context_length=0,batch_size=1,write2self=True):
+        sentence_dataset = ChildesDataset( self.files
                                       ,self.speakers
                                       ,self.encoded_sentences
                                       ,self.filtidx
                                       ,self.tokenizer
                                       ,context_length=context_length
                                        )
+        sentence_loader = DataLoader(sentence_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+        if write2self:
+            self.sentence_loader = sentence_loader
+        else:
+            return sentence_loader
 
+    def score_sentences(self, model, device):
+        """
+        Scores the sentences in self.sentence_loader using the model specified in model.
+        :param model: the model to use for scoring
+        :param device: the device to use for scoring
+        :return: a list of scores for each sentence in self.sentences
+        """
+        model.to(device)
+        model.eval()
 
+        scores = []
+        with torch.no_grad():
+            for batch in self.sentence_loader:
+                input_ids = batch["input_ids"].to(device)
+                attention_mask = batch["attention_mask"].to(device)
 
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
+                modelinputs = {
+                    "input_ids": input_ids,
+                    "attention_mask": attention_mask
+                }
 
 
 
