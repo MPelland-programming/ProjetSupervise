@@ -11,7 +11,6 @@ def get_file_and_pcodes(participant_doc):
     :param participant_doc: a doc containing file names and codes
     :return: a dataframe containing the same info as the doc, but with codes aggrecated across files.
     """
-    folder = Path(participant_doc).parent
 
     partdf = pd.read_csv(participant_doc)
 
@@ -257,11 +256,12 @@ class Allocator():
             tempdf = pd.DataFrame(tcontent,columns=['file'])
             tempdf = tempdf.merge(self.participant_df[['file', 'code']], on='file', how='left')
 
-            tempdf.to_csv(str(Path(baseconfig["transcript_folder"], csvfname)), index=False)
+            tempdf.to_csv(str(Path(baseconfig["config_folder"], csvfname)), index=False)
 
             #write yaml
-            baseconfig["transcript_file"] = csvfname
-            yamlfname = str(Path(baseconfig["transcript_folder"], f"config_block_{ii}").with_suffix(".yaml"))
+            baseconfig["transcript_file_list"] = csvfname
+            baseconfig["output_file"] = str(Path(baseconfig["output_folder"],f"output_block_{ii}.csv"))
+            yamlfname = str(Path(baseconfig["config_folder"], f"config_block_{ii}").with_suffix(".yaml"))
 
             with open(yamlfname, 'w') as outfile:
                 yaml.dump(baseconfig, outfile, default_flow_style=False, sort_keys=False)

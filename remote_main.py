@@ -1,11 +1,10 @@
 import argparse
 import yaml
-import generalfunctions as gf
-import pandas as pd
 from pathlib import Path
 import txtpreprocess as txtp
 import txtscoring as txtsc
 from transformers import AutoTokenizer, MistralForCausalLM
+from torch import cuda
 
 ## Command line input ##
 parser = argparse.ArgumentParser(
@@ -16,18 +15,25 @@ parser = argparse.ArgumentParser(
         'YAML should contain: \n'
         '   text_folder: folder for files    : where the transcript files are to be found. \n'
         '        Format: /home/files \n'
-        '   transcript_folder:  \n'
+        '   config_folder:  \n'
         '        Format: /home/files/models \n'
-        '   transcript_file : participant info doc: a .csv with column files for the file names \n'
+        '   transcript_file_list : participant info doc: a .csv with column files for the file names \n'
         '        Format: model1.csv \n'
         '   preprocessing_steps: list of preprocessing steps. \n'
         '        Format: [name1,name2,name3] \n'
+        '   measures:  list of measures to obtain from the transcripts \n'
+        '        Format: [measure1,measure2,measure3] \n'
+        '   output_folder: folder for output files \n'
         ' \n'
         ' Example YAML: \n'
         '   text_folder : /home/files\n'
-        '   transcript_folder : home/models \n'
-        '   transcript_file : model1.csv \n'
+        '   config_folder : /home/models \n'
+        '   transcript_file_list : model1.csv \n'
         '   preprocessing_steps: [m01] \n'
+        '   nallocate: 2048 \n'
+        '   measures: [sum_entropy] \n'
+        '   output_folder: /home/output\n'
+        '   output_file: output.csv     only necessary when using task "score"\n'
         )
     ,epilog=(
         'Note that there are two options for providing the list of files to process. \n'
@@ -42,7 +48,7 @@ parser.add_argument("config_file",type = str
 parser.add_argument("task", type = str
                     ,choices = ["count","score"]
                     ,help = "Whether to count number of lines per doc or score the sentences.")
-parser.add_argument("--transcript_file","-t"
+parser.add_argument("--transcript_file_list","-t"
                     ,help = "If not specified in config file, a .csv type file with a column named 'file' containing the list of file names to score")
 
 args = parser.parse_args()
@@ -57,31 +63,42 @@ task = args.task
 text_folder = config["text_folder"]
 preprocessing_steps = config["preprocessing_steps"]
 
-if "transcript_file" in config.keys():
-    if args.transcript_file:
-        raise NameError("transcript_file cannot both specified in config file and as argument.")
+if "transcript_file_list" in config.keys():
+    if args.transcript_file_list:
+        raise NameError("transcript_file_list cannot both specified in config file and as argument.")
     else:
-        transcript_file = str(Path(config["transcript_folder"],config["transcript_file"]))
+        transcript_file_list = str(Path(config["config_folder"],config["transcript_file_list"]))
 else:
-    transcript_file = args.transcript_file
+    transcript_file_list = args.transcript_file_list
 
 ################
 ## Main part ##
 ################
+modelname = "/home/mpelland/links/projects/def-eporte2/mpelland/predictability/lang_models/mistral/m7Bv03/snapshots/caa1feb0e54d415e2df31207e5f4e273e33509b1/"
+
 
 #setup extra vars
 extractor = txtp.TextExtraction(preprocessing_steps)
 
 #count and allocation task
 if task == "count":
-    myallocator = txtp.Allocator(transcript_file,text_folder,extractor)
-    myallocator.allocate(32768)
+    myallocator = txtp.Allocator(transcript_file_list,text_folder,extractor)
+    myallocator.allocate(config["nallocate"])
     myallocator.write_allocation(config)
 
-if task == "clean":
-    modelname = "mistralai/Mistral-7B-v0.3"
-    tokenizer = AutoTokenizer.from_pretrained(modelname,use_fast=True)
-    model = MistralForCausalLM.from_pretrained(modelname)
+if task == "score":
+    tokenizer = AutoTokenizer.from_pretrained(modelname,use_fast=True, local_files_only=True)
+    model = MistralForCausalLM.from_pretrained(modelname,local_files_only=True)
+    print(f"CPU RAM after load: {model.get_memory_footprint() / 1e9:.2f} GB")#####################################################
+    print(f"Model dtype: {next(model.parameters()).dtype}")#######################################################################
 
-    scorer = txtsc.SentenceScorer(transcript_file, text_folder, extractor, tokenizer)
-    scorer.gen_dataset_and_dataloader(context_length=0)                    ########################################### change to set it in config file
+    device ='cuda' if cuda.is_available() else 'cpu'
+
+    scorer = txtsc.SentenceScorer(transcript_file_list, text_folder, extractor, tokenizer)
+    dataset_params = {
+        "context_length": config["context_length"],
+        "batch_size": config["batch_size"],
+        "num_workers": config["num_workers"]
+    }
+    scorer.gen_dataset_and_dataloader(**dataset_params)
+    scorer.score_sentences(model,device=device, write2file=True, output_file=config["output_file"])

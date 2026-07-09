@@ -32,14 +32,18 @@ class ChildesDataset(Dataset):
         """
         tidx = self.filtidx[idx]
 
+        t_ids = self.encoded_sentences["input_ids"][tidx]
+
+
         if self.context_length == 0:
-            input_ids = torch.cat((self.bos, self.encoded_sentences["input_ids"][tidx]))
+            input_ids = torch.cat((self.bos, t_ids))
         else :
-            pass####################################################################implementation awaiting
+            raise NotImplementedError("Context length > 0 is not implemented yet.")
 
         out = (self.files[tidx]
                    , self.speakers[tidx]
                    , input_ids
+                   , self.encoded_sentences["length"][tidx]
                    , self.context_length
                )
 
@@ -52,7 +56,7 @@ def collate_fn(batch):
     :param batch: list of tuples (file, speaker, t_enc, stidx2score)
     :return: dict of padded input_ids, attention_mask, and list of files and speakers
     """
-    files, speakers, raw_ids, stidx2scores = zip(*batch)
+    files, speakers, raw_ids, ntokens, lencontext = zip(*batch)
 
     rawlen = [len(xx) for xx in raw_ids]
     maxlen = max(rawlen)
@@ -74,23 +78,57 @@ def collate_fn(batch):
         "speakers": speakers,
         "input_ids": input_ids,
         "attention_mask": attention_mask,
-        "stidx2scores": stidx2scores
+        "ntokens":ntokens,
+        "lencontext": lencontext
     }
 
 class SentenceScorer:
-    def __init__(self,participant_file, text_folder, extractor, tokenizer):
+    def __init__(self,participant_file, text_folder, extractor, tokenizer,automated_preprocessing=True):
         participant_df = pd.read_csv(participant_file)
         participant_df["code"] = participant_df['code'].apply(ast.literal_eval)
+
+        self.measure_list ={"sum_entropy":self.sum_entropy
+                            }
+
         self.participant_df = participant_df
         self.extractor = extractor
         self.tokenizer = tokenizer
         self.text_folder = text_folder
 
-        #Automated preprocessing
-        self.preprocess_sentences()
-        self.order_filtidx()
+        self.sentence_loader = None
 
-    def preprocess_sentences(self, write2self=True):
+        if automated_preprocessing:
+            (      self.files
+                 , self.speakers
+                 , self.sentences
+                 , self.codes
+                 , self.filtidx) = self.preprocess_sentences()
+
+            self.encoded_sentences = self.tokenize_sentences()
+            self.filtidx = self.order_filtidx()
+
+        else:
+            self.files = None
+            self.speakers = None
+            self.sentences = None
+            self.codes = None
+            self.filtidx = None
+
+    def sum_entropy(self,var4measures):
+        """
+        Computes the entropy of the logits.
+        :var4measures: dict with keys "logits" and "mask"
+        :return: the entropy of the logits
+        """
+        logits = var4measures["logits"]
+        sm = torch.nn.Softmax(dim=-1)
+        lsm = torch.nn.LogSoftmax(dim=-1)
+        entropy = -(sm(logits)*lsm(logits)).sum(dim=-1)
+        entropy = entropy*(var4measures["mask"])
+
+        return entropy.sum(dim=-1)
+
+    def preprocess_sentences(self, update_self=False):
         """
         Preprocesses the sentences in the text files specified in self.participant_df and self.text_folder.
         This is done automatically upon initialization of the class.
@@ -103,7 +141,7 @@ class SentenceScorer:
 
         filtidx = [ii for ii, (ss , cc) in enumerate(zip(speakers,codes)) if ss in cc]
 
-        if write2self:
+        if update_self:
             self.files = files
             self.speakers = speakers
             self.sentences = sentences
@@ -112,23 +150,24 @@ class SentenceScorer:
         else:
             return files, speakers, sentences, codes, filtidx
 
-    def tokenize_sentences(self,write2self=True):
+    def tokenize_sentences(self,update_self=False):
         """
         Tokenizes the sentences in self.sentences using the tokenizer specified in self.tokenizer.
         :return: a list of tokenized sentences including mask and lenght, but without special tokens.
         """
         list_encoded_sentences = self.tokenizer(self.sentences,add_special_tokens=False,return_length = True, return_attention_mask=False)
 
-        encoded_sentences = {}
-        encoded_sentences["input_ids"] = [torch.tensor(les,dtype=torch.int64) for les in list_encoded_sentences["input_ids"]]
-        encoded_sentences["length"] = list_encoded_sentences["length"]
+        encoded_sentences = {
+                            "input_ids": [torch.tensor(les,dtype=torch.int64) for les in list_encoded_sentences["input_ids"]]
+                            ,"length": list_encoded_sentences["length"]
+                            }
 
-        if write2self:
+        if update_self:
             self.encoded_sentences = encoded_sentences
         else:
             return encoded_sentences
 
-    def order_filtidx(self):
+    def order_filtidx(self, update_self=False):
         """
         Orders the filtered dataframe by the length of the tokenized sentences.
         :return: updates filtdf
@@ -139,9 +178,12 @@ class SentenceScorer:
 
         nord_idx = list(map(self.filtidx.__getitem__, order))
 
-        self.filtidx=nord_idx
+        if update_self:
+            self.filtidx=nord_idx
+        else:
+            return nord_idx
 
-    def gen_dataset_and_dataloader(self,context_length=0,batch_size=1,write2self=True):
+    def gen_dataset_and_dataloader(self,context_length=0,batch_size=1, num_workers=0,update_self=True):
         sentence_dataset = ChildesDataset( self.files
                                       ,self.speakers
                                       ,self.encoded_sentences
@@ -149,38 +191,100 @@ class SentenceScorer:
                                       ,self.tokenizer
                                       ,context_length=context_length
                                        )
-        sentence_loader = DataLoader(sentence_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-        if write2self:
+        sentence_loader = DataLoader(sentence_dataset
+                                     , batch_size=batch_size
+                                     , shuffle=False
+                                     , num_workers =num_workers
+                                     , collate_fn=collate_fn
+                                     , pin_memory=True)
+        if update_self:
             self.sentence_loader = sentence_loader
         else:
             return sentence_loader
 
-    def score_sentences(self, model, device):
+    def format_scores(self, df_out, aggmethod = "median", output_file="", write2file=False):
+        """
+        Formats the output dataframe and writes it to a csv file.
+        :param df_out: the output dataframe
+        :param output_file: the output file name
+        :return: None
+        """
+        grouped = df_out.groupby(["file", "speaker"]).agg(aggmethod).reset_index()
+
+        grouped.to_csv(output_file, index=False)
+
+    def score_sentences(self, model, device, aggmethod ="median", measures=["sum_entropy"],write2file=False,output_file=""):
         """
         Scores the sentences in self.sentence_loader using the model specified in model.
         :param model: the model to use for scoring
         :param device: the device to use for scoring
         :return: a list of scores for each sentence in self.sentences
         """
+
+        #return from dataloader: {"files", "speakers","input_ids", "attention_mask","ntokens","stidx2scores"}
         model.to(device)
+        torch.cuda.synchronize()
+        print(f"GPU allocated after .to(device): {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+        print(f"GPU reserved after .to(device): {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+
         model.eval()
 
-        scores = []
+        nmeasures = len(measures)
+        scores = [[]]*nmeasures
+        var4measures = {}
+        file, speaker, ntokens = [], [], []
+
+        flag = True
+
         with torch.no_grad():
             for batch in self.sentence_loader:
-                input_ids = batch["input_ids"].to(device)
-                attention_mask = batch["attention_mask"].to(device)
+                if flag:
+                    torch.cuda.synchronize()
+                    print(f"GPU allocated after forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                    print(f"Peak GPU memory: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
+                    flag = False
+
+
+                input_ids = batch["input_ids"].to(device, non_blocking=True)
+                attention_mask = batch["attention_mask"].to(device, non_blocking=True)
+                stidx2score = batch["lencontext"][0]+1 #+1 because of the bos token
 
                 modelinputs = {
                     "input_ids": input_ids,
                     "attention_mask": attention_mask
                 }
 
+                var4measures["logits"] = model(**modelinputs).logits[:,stidx2score:,]
+                var4measures["mask"] = attention_mask[:,stidx2score:]
+
+                for ii, me in enumerate(measures):
+                    scores[ii].append(self.measure_list[me](var4measures))
+
+                file.extend(batch["files"])
+                speaker.extend(batch["speakers"])
+                ntokens.extend(batch["ntokens"])
+
+        dict_out = {}
+        dict_out["file"] = file
+        dict_out["speaker"] = speaker
+        dict_out["ntokens"] = ntokens
+        dict_out["lencontext"] = stidx2score-1 #remove the +1 because of the bos token
+
+        for ii,ms in enumerate(measures):
+            dict_out[ms] = torch.cat(scores[ii]).cpu().float().numpy()
+
+        df_out = pd.DataFrame(dict_out)
+
+        if write2file:
+            self.format_scores(df_out,aggmethod=aggmethod, output_file=output_file,write2file=True)
+        else:
+            return df_out
 
 
 
 
 
-#modeloutputs = model(**modelinputs)
+#https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
+#https://docs.pytorch.org/tutorials/intermediate/intermediate_data_loading_tutorial.html
 
-#logits = modeloutputs.logits #shape batch x sequence lenght x vocab size
+
