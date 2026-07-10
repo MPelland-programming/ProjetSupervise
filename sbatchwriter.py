@@ -24,7 +24,7 @@ def write_sbatch_file(njobs,config):
             'source /home/mpelland/PREDICTENV/bin/activate\n'
             'export PYTHONPATH="/home/mpelland/links/projects/def-eporte2/mpelland/predictability/Code:$PYTHONPATH"\n'
             '\n'
-            f"python remote_main.py {block_config_path} 'score'\n"
+            f"python /home/mpelland/links/projects/def-eporte2/mpelland/predictability/Code/remote_main.py {block_config_path} 'score'\n"
         )
 
         sbatch_filename = str(Path(config["config_folder"], "submit_scoring.sh"))
