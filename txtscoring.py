@@ -224,8 +224,8 @@ class SentenceScorer:
         #return from dataloader: {"files", "speakers","input_ids", "attention_mask","ntokens","stidx2scores"}
         model.to(device)
         torch.cuda.synchronize()
-        #print(f"GPU allocated after .to(device): {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-        #print(f"GPU reserved after .to(device): {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+        print(f"GPU allocated after model.to(device): {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+        print(f"GPU reserved after model.to(device): {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
         model.eval()
 
@@ -234,20 +234,24 @@ class SentenceScorer:
         var4measures = {}
         file, speaker, ntokens = [], [], []
 
-        flag = True
+
 
         with torch.no_grad():
             for batch in self.sentence_loader:
-                if flag:
-                    torch.cuda.synchronize()
-                    #print(f"GPU allocated after forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-                    #print(f"Peak GPU memory: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
-                    flag = False
+
+                torch.cuda.synchronize()
+                print(f"GPU allocated loop start: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                print(f"GPU reserved  loop start: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+
 
 
                 input_ids = batch["input_ids"].to(device, non_blocking=True)
                 attention_mask = batch["attention_mask"].to(device, non_blocking=True)
                 stidx2score = batch["lencontext"][0]+1 #+1 because of the bos token
+
+                torch.cuda.synchronize()
+                print(f"GPU allocated in to device: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                print(f"GPU reserved  in to device: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
                 modelinputs = {
                     "input_ids": input_ids,
@@ -259,6 +263,10 @@ class SentenceScorer:
 
                 for ii, me in enumerate(measures):
                     scores[ii].append(self.measure_list[me](var4measures).detach().cpu())
+
+                torch.cuda.synchronize()
+                print(f"GPU allocated after detach: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                print(f"GPU reserved  after detach: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
                 file.extend(batch["files"])
                 speaker.extend(batch["speakers"])

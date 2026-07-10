@@ -18,7 +18,7 @@ def write_sbatch_file(njobs,config):
             '#SBATCH --cpus-per-task=1\n'
             '#SBATCH --mem-per-cpu=3G\n'
             '#SBATCH --time=1:00:00\n'
-            f"#SBATCH --array=0-{njobs}\n"
+            f"#SBATCH --array=0-1\n" #{njobs}\n"
             '\n'
             'module load python/3.11.5\n'
             'source /home/mpelland/PREDICTENV/bin/activate\n'
