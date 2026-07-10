@@ -230,7 +230,7 @@ class SentenceScorer:
         model.eval()
 
         nmeasures = len(measures)
-        scores = [[]]*nmeasures
+        scores = [[] for _ in range(nmeasures)]
         var4measures = {}
         file, speaker, ntokens = [], [], []
 
@@ -258,7 +258,7 @@ class SentenceScorer:
                 var4measures["mask"] = attention_mask[:,stidx2score:]
 
                 for ii, me in enumerate(measures):
-                    scores[ii].append(self.measure_list[me](var4measures))
+                    scores[ii].append(self.measure_list[me](var4measures).detach().cup())
 
                 file.extend(batch["files"])
                 speaker.extend(batch["speakers"])
@@ -271,7 +271,7 @@ class SentenceScorer:
         dict_out["lencontext"] = stidx2score-1 #remove the +1 because of the bos token
 
         for ii,ms in enumerate(measures):
-            dict_out[ms] = torch.cat(scores[ii]).cpu().float().numpy()
+            dict_out[ms] = torch.cat(scores[ii]).float().numpy()
 
         df_out = pd.DataFrame(dict_out)
 
