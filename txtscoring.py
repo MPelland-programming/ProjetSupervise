@@ -258,7 +258,7 @@ class SentenceScorer:
                 var4measures["mask"] = attention_mask[:,stidx2score:]
 
                 for ii, me in enumerate(measures):
-                    scores[ii].append(self.measure_list[me](var4measures).detach().cup())
+                    scores[ii].append(self.measure_list[me](var4measures).detach().cpu())
 
                 file.extend(batch["files"])
                 speaker.extend(batch["speakers"])
