@@ -224,8 +224,8 @@ class SentenceScorer:
         #return from dataloader: {"files", "speakers","input_ids", "attention_mask","ntokens","stidx2scores"}
         model.to(device)
         torch.cuda.synchronize()
-        print(f"GPU allocated after .to(device): {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-        print(f"GPU reserved after .to(device): {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+        #print(f"GPU allocated after .to(device): {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+        #print(f"GPU reserved after .to(device): {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
         model.eval()
 
@@ -240,8 +240,8 @@ class SentenceScorer:
             for batch in self.sentence_loader:
                 if flag:
                     torch.cuda.synchronize()
-                    print(f"GPU allocated after forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-                    print(f"Peak GPU memory: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
+                    #print(f"GPU allocated after forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                    #print(f"Peak GPU memory: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB")
                     flag = False
 
 
@@ -279,9 +279,6 @@ class SentenceScorer:
             self.format_scores(df_out,aggmethod=aggmethod, output_file=output_file,write2file=True)
         else:
             return df_out
-
-
-
 
 
 #https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html

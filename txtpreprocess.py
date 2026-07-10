@@ -265,3 +265,5 @@ class Allocator():
 
             with open(yamlfname, 'w') as outfile:
                 yaml.dump(baseconfig, outfile, default_flow_style=False, sort_keys=False)
+
+        return ii

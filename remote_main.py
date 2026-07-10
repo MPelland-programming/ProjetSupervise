@@ -1,8 +1,10 @@
 import argparse
 import yaml
 from pathlib import Path
+import subprocess
 import txtpreprocess as txtp
 import txtscoring as txtsc
+import sbatchwriter as sbw
 from transformers import AutoTokenizer, MistralForCausalLM
 from torch import cuda
 
@@ -84,13 +86,16 @@ extractor = txtp.TextExtraction(preprocessing_steps)
 if task == "count":
     myallocator = txtp.Allocator(transcript_file_list,text_folder,extractor)
     myallocator.allocate(config["nallocate"])
-    myallocator.write_allocation(config)
+    num_score_jobs = myallocator.write_allocation(config)
+    sbw.write_sbatch_file(num_score_jobs,config)
+
+    sbw.launch_sbatch_job(config,"submit_scoring.sh")
 
 if task == "score":
     tokenizer = AutoTokenizer.from_pretrained(modelname,use_fast=True, local_files_only=True)
     model = MistralForCausalLM.from_pretrained(modelname,local_files_only=True)
-    print(f"CPU RAM after load: {model.get_memory_footprint() / 1e9:.2f} GB")#####################################################
-    print(f"Model dtype: {next(model.parameters()).dtype}")#######################################################################
+    #print(f"CPU RAM after load: {model.get_memory_footprint() / 1e9:.2f} GB")#####################################################
+    #print(f"Model dtype: {next(model.parameters()).dtype}")#######################################################################
 
     device ='cuda' if cuda.is_available() else 'cpu'
 
