@@ -19,20 +19,28 @@ def oneway_bubble_sort(mainlist:list,sublist:list):
 
 def multi_join(main_file,sub_folder):
     """
-    Takes a main file and iterates through a subfolder to join all files of .csv format.
+    Iterate through a subfolder to concatenat all files of .csv format, then left join the concatenated files to the main one
+    based on the column filename.
     :param main_file:
     :param sub_folder:
     :return: uptdated main file saved in the subfolder
     """
-    main_df = pd.read_csv(main_file)
+    main_file = pd.read_csv(main_file)
 
-    for sub_file in Path(sub_folder).glob("*.csv"):
-        if sub_file != Path(main_file):
-            sub_df = pd.read_csv(sub_file)
-            main_df = pd.concat([main_df,sub_df],ignore_index=True)
+    # Concatenate all CSVs into a single DataFrame
+    df_list = []
+    for file in Path(sub_folder).glob("*.csv"):
+        df = pd.read_csv(file)
+        df_list.append(df)
 
-    main_file_name = Path(main_file).name
-    main_df.to_csv(Path(sub_folder,main_file_name),index=False)
+    concatenated_df = pd.concat(df_list, ignore_index=True)
+
+    # Left join concatenated data onto main_file based on 'filename' column
+    updated_main_file = main_file.merge(concatenated_df, on="filename", how="left")
+
+    # Save updated main file back into the subfolder
+    updated_main_file.to_csv(Path(sub_folder,Path(main_file).name),index=False)
+
 
 
 
