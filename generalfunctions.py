@@ -25,7 +25,7 @@ def multi_join(main_file,sub_folder):
     :param sub_folder:
     :return: uptdated main file saved in the subfolder
     """
-    main_file = pd.read_csv(main_file)
+    main_df = pd.read_csv(main_file)
 
     # Concatenate all CSVs into a single DataFrame
     df_list = []
@@ -35,7 +35,7 @@ def multi_join(main_file,sub_folder):
 
     concatenated_df = pd.concat(df_list, ignore_index=True)
 
-    updated_main_file = main_file.merge(
+    updated_main_file = main_df.merge(
         concatenated_df,
         left_on=["file", "code"],
         right_on=["file", "speaker"],
