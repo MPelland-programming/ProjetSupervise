@@ -17,7 +17,7 @@ def write_sbatch_file(njobs,config):
             '#SBATCH --gres=gpu:1\n'
             '#SBATCH --cpus-per-task=1\n'
             '#SBATCH --mem-per-cpu=3G\n'
-            '#SBATCH --time=1:00:00\n'
+            '#SBATCH --time=00:20:00\n'
             f"#SBATCH --array=0-{njobs}\n"
             '\n'
             'module load python/3.11.5\n'
