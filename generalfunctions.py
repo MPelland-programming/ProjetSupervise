@@ -35,8 +35,12 @@ def multi_join(main_file,sub_folder):
 
     concatenated_df = pd.concat(df_list, ignore_index=True)
 
-    # Left join concatenated data onto main_file based on 'filename' column
-    updated_main_file = main_file.merge(concatenated_df, on="filename", how="left")
+    updated_main_file = main_file.merge(
+        concatenated_df,
+        left_on=["file", "code"],
+        right_on=["file", "speaker"],
+        how="left"
+    )
 
     # Save updated main file back into the subfolder
     updated_main_file.to_csv(Path(sub_folder,Path(main_file).name),index=False)
