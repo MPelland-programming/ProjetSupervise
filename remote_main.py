@@ -65,6 +65,9 @@ task = args.task
 text_folder = config["text_folder"]
 preprocessing_steps = config["preprocessing_steps"]
 
+if "batch_type" not in config.keys():
+    config["batch_type"] = "nlines"
+
 if "transcript_file_list" in config.keys():
     if args.transcript_file_list:
         raise NameError("transcript_file_list cannot both specified in config file and as argument.")
@@ -103,6 +106,7 @@ if task == "score":
     dataset_params = {
         "context_length": config["context_length"],
         "batch_size": config["batch_size"],
+        "batch_type": config["batch_type"],
         "num_workers": config["num_workers"]
     }
     scorer.gen_dataset_and_dataloader(**dataset_params)

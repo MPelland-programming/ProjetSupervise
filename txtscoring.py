@@ -59,12 +59,12 @@ def vectorized_selected_ids(var4measures):
     context_lengths = var4measures["con_len"]+1 #finally accounts for BOS
     target_lengths = var4measures["utt_len"]
 
-    positions = torch.arange(L, device=device).unsqueeze(0)          # (1, L)
+    positions = torch.arange(L, dtype=torch.int32, device=device).unsqueeze(0)          # (1, L)
     start = context_lengths.unsqueeze(1)                             # (B, 1)
     end   = (context_lengths + target_lengths).unsqueeze(1)          # (B, 1)
     mask  = (positions >= start) & (positions < end)                 # (B, L)
 
-    batch_idx = torch.arange(B, device=device).unsqueeze(1).expand(-1, L)[mask]  # (N,)
+    batch_idx = torch.arange(B, dtype=torch.int64, device=device).unsqueeze(1).expand(-1, L)[mask]  # (N,)
     selected_logits = logits[mask]
 
     var4measures["selected_logits"] = selected_logits
@@ -189,11 +189,14 @@ def collate_fn(batch):
 
 class TokenBasedSampler(torch.utils.data.Sampler[List[int]]):
     """
-    Takes in indices for data which are sorted in ascending lenght of data
+    Takes in indices for data which are sorted in descending lenght
     and selects indices in a way that yields batches of relatively equal sizes.
     """
     def __init__(self,idx,lengths,batch_size):
-        maxsize = batch_size
+        #As of Au 19, 2026, it is estimated that input_ids, att_mask and logits
+        #for a single item consume 2**18.4 bytes of memory.
+        #Thus, we can set a gb budget and compute how many elements B*L can contain.
+        maxsize = np.floor(2**(np.log2(batch_size)+30-18.4)) #(number of gbs * size of gb) /size for one unit
 
         batch_list = [[]]
         start_idx = 0
@@ -307,7 +310,18 @@ class SentenceScorer:
         else:
             return encoded_sentences
 
-    def gen_dataset_and_dataloader(self,context_length=0,turn=True,batch_size=1, num_workers=0,update_self=True):
+    def gen_dataset_and_dataloader(self,context_length=0,turn=True,batch_size=1, batch_type="nlines", num_workers=0,update_self=True):
+        """
+        :param context_length: int,  number of tokens or speaking turns
+        :param turn:           bool, True if using speaking turns for context lenght
+        :param batch_size:     int,  number of lines or tokens to analyse per batch
+        :param batch_type:     str of "nlines" or "ntokens, see batch_size for more details
+        :param num_workers:    int, number of workers to use for data loading
+        :param update_self:    bool, whethr to retunr the dataloader or update the object.
+        :return:
+            a Dataloader object or updates self with it.
+        """
+
         sentence_dataset = ChildesDataset( self.files
                                       ,self.speakers
                                       ,self.encoded_sentences
@@ -317,14 +331,23 @@ class SentenceScorer:
                                       ,turn=turn
                                        )
 
-        aaaaaa ##################################################################################### add a switch for batch
+        if batch_type == "nlines":
+            sentence_loader = DataLoader(sentence_dataset
+                                         , batch_size=batch_size
+                                         , shuffle=False
+                                         , num_workers =num_workers
+                                         , collate_fn=collate_fn
+                                         , pin_memory=True)
 
-        sentence_loader = DataLoader(sentence_dataset
-                                     , batch_size=batch_size
-                                     , shuffle=False
-                                     , num_workers =num_workers
-                                     , collate_fn=collate_fn
-                                     , pin_memory=True)
+        elif batch_type == "ntokens":
+            batch_sampler = TokenBasedSampler(self.filtidx, self.encoded_sentences["lengths"], batch_size)
+
+            sentence_loader = DataLoader(sentence_dataset
+                                         , batch_sampler=batch_sampler
+                                         , num_workers =num_workers
+                                         , collate_fn=collate_fn
+                                         , pin_memory=True)
+
         if update_self:
             self.sentence_loader = sentence_loader
         else:
