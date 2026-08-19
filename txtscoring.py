@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import pandas as pd
@@ -6,13 +7,79 @@ import numpy as np
 import ast
 
 
+def order_idx_by_size(idx, lengths):
+    """
+    Orders the filtered list of idx based on lengths.
+    :return: updates filtdf
+    """
+    order = np.argsort(lengths,descending=True)
+
+    ord_idx = [idx[ii] for ii in order]
+
+    return ord_idx
+
+def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
+    """
+    further carries idx selection and order them by size, which includes the context.
+    -filtidx list of idx filter by code
+    """
+
+    if context_length == 0:
+        filt_len = [lengths[ii] for ii in filtidx]
+        new_filtidx = filtidx
+
+    elif turn:
+        con_filtidx = []
+        filt_len = []
+
+        for tidx in filtidx:
+            if (tidx - context_length >= 0) and (files[tidx] == files[tidx-context_length]):
+                tlen = 0
+                for ii in range(tidx - context_length, tidx + 1):
+                    tlen += lengths[ii]
+
+                con_filtidx.append(tidx)
+                filt_len.append(tlen)
+
+    else:
+        raise NotImplementedError("Context length > 0 token based is not implemented yet.")
+
+    ord_idx = order_idx_by_size(new_filtidx, filt_len)
+    return ord_idx
+
+def vectorized_selected_ids(var4measures):
+    """
+    :return:
+        -selected_logits
+        -batch_dix
+    """
+    logits = var4measures["logits"]
+    B, L, V = logits.shape
+    device = logits.device
+    context_lengths = var4measures["con_len"]+1 #finally accounts for BOS
+    target_lengths = var4measures["utt_len"]
+
+    positions = torch.arange(L, device=device).unsqueeze(0)          # (1, L)
+    start = context_lengths.unsqueeze(1)                             # (B, 1)
+    end   = (context_lengths + target_lengths).unsqueeze(1)          # (B, 1)
+    mask  = (positions >= start) & (positions < end)                 # (B, L)
+
+    batch_idx = torch.arange(B, device=device).unsqueeze(1).expand(-1, L)[mask]  # (N,)
+    selected_logits = logits[mask]
+
+    var4measures["selected_logits"] = selected_logits
+    var4measures["batch_idx"] = batch_idx
+
+    return var4measures
+
 class ChildesDataset(Dataset):
-    def __init__(self, files, speakers, encoded_sentences, filtidx, tokenizer, context_length=0):
+    def __init__(self, files, speakers, encoded_sentences, filtidx, tokenizer, context_length=0,turn=True):
         self.files = files
         self.speakers = speakers
-        self.encoded_sentences = encoded_sentences
-        self.filtidx = filtidx
+        self.encoded_sentences = encoded_sentences #includes
+        self.filtidx = select_and_order_idx(files, filtidx, encoded_sentences["length"], context_length=context_length, turn=turn) #selection base on whether a line has enough context.
         self.context_length = context_length
+        self.turn = turn
         self.dtype = encoded_sentences["input_ids"][0].dtype
         self.bos = torch.tensor([tokenizer.bos_token_id],dtype=self.dtype)
 
@@ -25,26 +92,54 @@ class ChildesDataset(Dataset):
         This is to avoid sentences which are not spoken by the speaker of interest.
         :param idx:
         :return:
-            - files: the file name of the transcript
-            - speakers: the speaker of the sentence
-            - t_enc: dict of input_ids, attention_mask
-            - stidx2score: index from which to start scoring.
+            A tuple for single target utterance.
+                -file name
+                -Name of speaker of target utterance
+                -ids including context and BOS
+                -length of target utterance
+                -lenght of context linked to utterance
+                -proportion of the utterances coming from target speaker.
+               )
         """
         tidx = self.filtidx[idx]
 
-        t_ids = self.encoded_sentences["input_ids"][tidx]
-
-
+        #No context
         if self.context_length == 0:
+            t_ids = self.encoded_sentences["input_ids"][tidx]
             input_ids = torch.cat((self.bos, t_ids))
+            context_len = 0
+            proportion_speaker = 1
+
+        #Context
         else :
-            raise NotImplementedError("Context length > 0 is not implemented yet.")
+            #turn based
+            if self.turn:
+                list_utt_ids = [self.bos]
+                context_len = 0 #for bos token
+
+                es_ids = self.encoded_sentences["input_ids"][tidx-self.context_length:tidx+1]
+                es_len = self.encoded_sentences["input_ids"][tidx - self.context_length:tidx + 1]
+
+                for ii,le in zip(es_ids,es_len):
+                    list_utt_ids.append(ii)
+                    context_len += le
+
+                input_ids = torch.cat(list_utt_ids)
+                context_len -= le  #remove last length since it is the target utterance.
+
+                target_speaker = self.speakers[tidx]
+                proportion_speaker =  sum([target_speaker in ss for ss in self.speakers[tidx-self.context_length:tidx+1]])/self.context_length
+
+            else:
+                raise NotImplementedError("Context length > 0 token based is not implemented yet.")
+
 
         out = (self.files[tidx]
                    , self.speakers[tidx]
                    , input_ids
                    , self.encoded_sentences["length"][tidx]
-                   , self.context_length
+                   , context_len
+                   , proportion_speaker
                )
 
         return out
@@ -53,10 +148,19 @@ def collate_fn(batch):
     """
     Collate function to be used with the DataLoader.
     This function pads the input_ids and attention_mask to the maximum length in the batch.
-    :param batch: list of tuples (file, speaker, t_enc, stidx2score)
-    :return: dict of padded input_ids, attention_mask, and list of files and speakers
+    :param batch: list of tuples (file, speaker, ids, lenght of target utterance, lenght of context, proportion of speaker)
+    :return:
+        Dictionary of lists or tensors, contains:
+        -files:             list of file name
+        -speakers:          list of speaker of target utterance
+        -input_ids:         tensor      (B x max context+utterance lenght of batch)
+        -attention_mask:    tensor      (B x max context+utterance lenght of batch)
+        -utterance_len:     list of lenght of target utterance
+        -context_len:       list of lenght of context
+        -proportion_speaker:list of prop_speaker
     """
-    files, speakers, raw_ids, ntokens, lencontext = zip(*batch)
+
+    files, speakers, raw_ids, utterance_len, context_len, prop_speaker = zip(*batch)
 
     rawlen = [len(xx) for xx in raw_ids]
     maxlen = max(rawlen)
@@ -72,15 +176,47 @@ def collate_fn(batch):
         input_ids[ii,:] = torch.cat((renc, torch.zeros(pad_len,dtype=torch.int64)))
         attention_mask[ii,:] = torch.cat((torch.ones(rlen,dtype=torch.int8), torch.zeros(pad_len,dtype=torch.int8)))
 
-
+    #outputs are
     return {
         "files": files,
         "speakers": speakers,
         "input_ids": input_ids,
         "attention_mask": attention_mask,
-        "ntokens":ntokens,
-        "lencontext": lencontext
+        "utterance_len":utterance_len,
+        "context_len": context_len,
+        "proportion_speaker": prop_speaker
     }
+
+class TokenBasedSampler(torch.utils.data.Sampler[List[int]]):
+    """
+    Takes in indices for data which are sorted in ascending lenght of data
+    and selects indices in a way that yields batches of relatively equal sizes.
+    """
+    def __init__(self,idx,lengths,batch_size):
+        maxsize = batch_size
+
+        batch_list = [[]]
+        start_idx = 0
+        curr_idx = 0
+
+        while curr_idx < len(idx):
+            idx_list = []
+            width = lengths[curr_idx]
+
+            while ((curr_idx-start_idx+1)*width < maxsize) and (curr_idx < len(idx)):
+                idx_list.append(idx[curr_idx])
+                curr_idx += 1
+
+            batch_list.append(idx_list)
+            start_idx = curr_idx
+
+        self.batch_list = batch_list
+
+    def __len__(self) -> int:
+        return len(self.batch_list)
+
+    def __iter__(self) -> Iterator[List[int]]:
+        yield from self.batch_list
 
 class SentenceScorer:
     def __init__(self,participant_file, text_folder, extractor, tokenizer,automated_preprocessing=True):
@@ -105,7 +241,6 @@ class SentenceScorer:
                  , self.filtidx) = self.preprocess_sentences()
 
             self.encoded_sentences = self.tokenize_sentences()
-            self.filtidx = self.order_filtidx()
 
         else:
             self.files = None
@@ -117,16 +252,21 @@ class SentenceScorer:
     def sum_entropy(self,var4measures):
         """
         Computes the entropy of the logits.
-        :var4measures: dict with keys "logits" and "mask"
-        :return: the entropy of the logits
+        :var4measures: dict with keys "logits" and "mask" with B x L X V
+        :return: the entropy of the logits size B
         """
-        logits = var4measures["logits"]
-        sm = torch.nn.Softmax(dim=-1)
-        lsm = torch.nn.LogSoftmax(dim=-1)
-        entropy = -(sm(logits)*lsm(logits)).sum(dim=-1)
-        entropy = entropy*(var4measures["mask"])
+        selected_logits = var4measures["selected_logits"]
+        batch_idx = var4measures["batch_idx"]
+        B = var4measures["batch_size"]
+        device = selected_logits.device
 
-        return entropy.sum(dim=-1)
+        probs = torch.softmax(selected_logits, dim=-1)
+        entropy = torch.special.entr(probs).sum(dim=-1)
+
+        result = torch.zeros(B, device=device, dtype=entropy.dtype)
+        result.scatter_add_(0, batch_idx, entropy)
+
+        return result
 
     def preprocess_sentences(self, update_self=False):
         """
@@ -167,30 +307,18 @@ class SentenceScorer:
         else:
             return encoded_sentences
 
-    def order_filtidx(self, update_self=False):
-        """
-        Orders the filtered dataframe by the length of the tokenized sentences.
-        :return: updates filtdf
-        """
-        all_len = self.encoded_sentences["length"]
-        slen = [all_len[ii] for ii in self.filtidx]
-        order = np.argsort(slen)
-
-        nord_idx = list(map(self.filtidx.__getitem__, order))
-
-        if update_self:
-            self.filtidx=nord_idx
-        else:
-            return nord_idx
-
-    def gen_dataset_and_dataloader(self,context_length=0,batch_size=1, num_workers=0,update_self=True):
+    def gen_dataset_and_dataloader(self,context_length=0,turn=True,batch_size=1, num_workers=0,update_self=True):
         sentence_dataset = ChildesDataset( self.files
                                       ,self.speakers
                                       ,self.encoded_sentences
                                       ,self.filtidx
                                       ,self.tokenizer
                                       ,context_length=context_length
+                                      ,turn=turn
                                        )
+
+        aaaaaa ##################################################################################### add a switch for batch
+
         sentence_loader = DataLoader(sentence_dataset
                                      , batch_size=batch_size
                                      , shuffle=False
@@ -231,52 +359,51 @@ class SentenceScorer:
 
         nmeasures = len(measures)
         scores = [[] for _ in range(nmeasures)]
-        var4measures = {}
-        file, speaker, ntokens = [], [], []
-
+        file, speaker, utterance_len, context_len  = [], [], [], []
 
 
         with torch.no_grad():
             for batch in self.sentence_loader:
 
+                input_ids = batch["input_ids"].to(device, non_blocking=True)
+                attention_mask = batch["attention_mask"].to(device, non_blocking=True)
+                con_len = torch.tensor(batch["context_len"],dtype=int64).to(device, non_blocking=True)
+                utt_len = torch.tensor(batch["utterance_len"],dtype=int64).to(device, non_blocking=True)
+                batch_size = batch["input_ids"].shape[0]
+
+                modelinputs = {"input_ids": input_ids,"attention_mask": attention_mask}
+
+                var4measures={"con_len": con_len,"utt_len": utt_len,"batch_size":batch_size}
+
+                #Score using model
+                var4measures["logits"] = model(**modelinputs).logits   #shape: b x tokens x vocab
+
+                var4measures = vectorized_selected_ids(var4measures)
+
+                #extract measures
+                for ii, me in enumerate(measures):
+                    scores[ii].append(self.measure_list[me](var4measures).detach().cpu())
+
+                file.extend(batch["files"])
+                speaker.extend(batch["speakers"])
+                utterance_len.extend(batch["utterance_len"])
+                context_len.extend(batch["context_len"])
+
+                #######################################################################################################
+                #######################################################################################################
+                #                                   add prop of speaker
+                #######################################################################################################
+                #######################################################################################################
+
                 #torch.cuda.synchronize()
                 #print(f"GPU allocated loop start: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
                 #print(f"GPU reserved  loop start: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
-
-
-                input_ids = batch["input_ids"].to(device, non_blocking=True)
-                attention_mask = batch["attention_mask"].to(device, non_blocking=True)
-                stidx2score = batch["lencontext"][0]+1 #+1 because of the bos token
-
-                #torch.cuda.synchronize()
-                #print(f"GPU allocated in to device: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-                #print(f"GPU reserved  in to device: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
-
-                modelinputs = {
-                    "input_ids": input_ids,
-                    "attention_mask": attention_mask
-                }
-
-                var4measures["logits"] = model(**modelinputs).logits[:,stidx2score:,]
-                var4measures["mask"] = attention_mask[:,stidx2score:]
-
-                for ii, me in enumerate(measures):
-                    scores[ii].append(self.measure_list[me](var4measures).detach().cpu())
-
-                #torch.cuda.synchronize()
-                #print(f"GPU allocated after detach: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-                #print(f"GPU reserved  after detach: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
-
-                file.extend(batch["files"])
-                speaker.extend(batch["speakers"])
-                ntokens.extend(batch["ntokens"])
-
         dict_out = {}
         dict_out["file"] = file
         dict_out["speaker"] = speaker
-        dict_out["ntokens"] = ntokens
-        dict_out["lencontext"] = stidx2score-1 #remove the +1 because of the bos token
+        dict_out["ntokens"] = utterance_len
+        dict_out["lencontext"] = context_len
 
         for ii,ms in enumerate(measures):
             dict_out[ms] = torch.cat(scores[ii]).float().numpy()

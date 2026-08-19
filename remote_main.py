@@ -106,4 +106,4 @@ if task == "score":
         "num_workers": config["num_workers"]
     }
     scorer.gen_dataset_and_dataloader(**dataset_params)
-    scorer.score_sentences(model,device=device, write2file=True, output_file=config["output_file"])
+    scorer.score_sentences(model,device=device, write2file=True, output_file=config["output_file"])  ##########################################Change agg method

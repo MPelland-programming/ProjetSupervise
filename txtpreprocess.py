@@ -42,7 +42,7 @@ class TextExtraction:
             self.method_list = method_list
 
 
-    def m01(self, line:str, prevtier:str):
+    def m01(self, prevtier:str, line:str):
         """
         method 1: extract the %flo line from .cha. but append the code of the main tier.
         """
@@ -55,30 +55,389 @@ class TextExtraction:
 
         return ["",""]
 
-    def m01b(self,line:str, prevtier:str, code_list:list):
-        pass
+    def m01b(self,prevtier:str, line:str):
+        """
+        method 1b: extract the * line from .cha also removes the tab at the beginning of the line.
+        """
+        if line.startswith("*"):
+            tier, text = line.split(':', maxsplit=1)
+            return ["", f"{tier}:{text.strip()}"]
+        else:
+            return ["", ""]
 
-    def m02(self, line:str, prevtier:str, code_list:list):
+    def m02(self, prevtier:str, line:str):
         """
         method 2: removes ELAN code at the end of lies.
         """
         match = re.search(r'[.!?](?!.*[.!?])', line)
         if match:
-           return text[:match.end()].strip()
+           return [prevtier,line[:match.end()].strip()]
         else:
-           return line.strip()
+           return [prevtier,line.strip()]
 
-    def m03(self, line:str, prevtier:str, code_list:list):
-        """
-        method 3: keeps dots found in parentheses
-        """
-        return re.sub(r'\(([.\s]+)\)', r'\1', line)
+    def m03(self, prevtier:str, line:str): pass
 
-    def m04(self, line:str, prevtier:str, code_list:list):
+    def m04a(self, prevtier:str, line:str):
         """
-        method 4: keep text in parentheses if they only include a mix of letters, whitespaces or punctuation.
+        method 4a: keep text in parentheses if they only include a mix of letters, whitespaces or punctuation.
         """
-        return re.sub(r'\(([A-Za-z\s,!?;:\–—-]+)\)', r'(\1)', line)
+        line = re.sub(r'\(([A-Za-z\s,!?;:\–—-]+)\)', r'\1', line)
+        return [prevtier, line]
+
+    def m04b(self, prevtier: str, line: str):
+        """
+        method 4b: remove parentheses (and their contents) if they only include a mix of letters, whitespaces or punctuation.
+        """
+        line = re.sub(r'\([A-Za-z\s,!?;:\–—-]+\)', '', line)
+        return [prevtier, line]
+
+    def m05(self, prevtier:str, line:str):
+        """
+        method 5: remove special form markers: from @ to next whitespace, including punctuation
+        """
+        line = re.sub(r'@\w*', '', line)
+        return [prevtier, line]
+
+    def m06(self, prevtier:str, line:str):
+        """
+        method 6: replace www with nothing.
+        """
+        line = re.sub(r'www', '', line)
+        return [prevtier, line]
+
+    def m07(self, prevtier:str, line:str):
+        """
+        method 7: replace xxx with single . .
+        """
+        line = re.sub(r'xxx', '.', line)
+        return [prevtier, line]
+
+    def m08(self, prevtier:str, line:str):
+        """
+        method 8: replace yyy with single . .
+        """
+        line = re.sub(r'yyy', '.', line)
+        return [prevtier, line]
+
+    def m09(self, prevtier: str, line: str):
+        """
+        method 09: audio and video time marks
+        """
+        line = re.sub(r'[-]*\d+_\d+', '', line)
+        line = re.sub(r'%pic: ?[\w]+\.[\w]+', '', line)
+        line = re.sub(r'%text: ?[\w]+\.[\w]+', '', line)
+        return [prevtier, line]
+
+    def m10(self, prevtier:str, line:str):
+        """
+        method 10: remove words that were missing but still inserted by transcriber.
+        """
+        line = re.sub(r'\b0\w+', '', line)
+        return [prevtier, line]
+
+    def m11(self, prevtier:str, line:str):
+        """
+        method 11: underscore removal
+        """
+        def merge_singles(match):
+            return match.group(0).replace('_', '')
+        line = re.sub(r'\b[A-Za-z0-9](?:_[A-Za-z0-9])+\b', merge_singles, line)
+        line = line.replace('_', ' ')
+
+        return [prevtier, line]
+
+    def m12b(self, prevtier: str, line: str):
+        """
+        method 12b: remove brackets (and their contents) if they only include a mix of letters, whitespaces or punctuation.
+        """
+        line = re.sub(r'[\(\[][A-Za-z\s,!?;:\–—-]+[\)\]]', '', line)
+        return [prevtier, line]
+
+    def m13(self, prevtier: str, line: str):
+        """
+        method 13: : used to denote long vowels.
+        """
+        line = re.sub(r'(?<=[A-Za-z]):(?=[A-Za-z])', '', line)
+        return [prevtier, line]
+
+    def m14(self, prevtier:str, line:str):
+        """
+        method 14: remove satellite markers
+        """
+        line = re.sub(r'[‡]|,,', '', line)
+        return [prevtier, line]
+
+    def m15(self, prevtier:str, line:str):
+        """
+        method 15: remove tonal direction markers
+        """
+        line = re.sub(r'↑|↓|-!|-\?', '', line)
+        if not line.strip().endswith('.'):
+            line = line.strip() + ' .'
+        return [prevtier, line]
+
+    def m16(self, prevtier:str, line:str):
+        """
+        method 16: remove stress
+        """
+        line = re.sub(r'[\u02C8\u02CC^]', '', line)
+        return [prevtier, line]
+
+    def m17(self):pass
+
+    def m18(self):pass
+
+    def m19(self, prevtier:str, line:str):
+        """
+        method 19: replace time of pauses with pauses
+        """
+        line = re.sub(r'\([\d:.]+\)', '(.)', line)
+        return [prevtier, line]
+
+    def m20a(self, prevtier:str, line:str):
+        """
+        method 20a: keep pauses but remove parentheses around them (any parentheses with only a dot or whitespace inside)
+        """
+        line = re.sub(r'\(([.\s]+)\)', r'\1', line)
+        return [prevtier, line]
+
+    def m20b(self, prevtier:str, line:str):
+        """
+        method 20b: remove pauses (any parentheses with only a dot or whitespace inside)
+        """
+        line = re.sub(r'\(([.\s]+)\)', '', line)
+        return [prevtier, line]
+
+    def m21(self, prevtier:str, line:str):
+        """
+        method 21: remove actions
+        """
+        line = re.sub(r'&=\S+:\S+', '', line)
+        line = re.sub(r'&=', '', line)
+        return [prevtier, line]
+
+    def m22(self, prevtier:str, line:str): pass
+
+    def m23(self, prevtier:str, line:str):
+        """
+        method 23: remove insertion by other speakers
+        """
+        line = re.sub(r'\*&\S*', '', line)
+        return [prevtier, line]
+
+    def m24a(self, prevtier:str, line:str):
+        """
+        method 24a keep long vocal events (laughter)
+        """
+        line = re.sub(r'\&[\{\}]+l=(\S*)', r'\1', line)
+        return [prevtier, line]
+
+    def m24b(self, prevtier:str, line:str):
+        """
+        method 24b remove long vocal events (laughter)
+        """
+        line = re.sub(r'\&[\{\}]+l=(\S*)', '', line)
+        return [prevtier, line]
+
+    def m25a(self, prevtier: str, line: str):
+        """
+        method 25a keep long nonvocal events (waving)
+        """
+        line = re.sub(r'\&[\{\}]+n=(\S*)', r'\1', line)
+        return [prevtier, line]
+
+    def m25b(self, prevtier: str, line: str):
+        """
+        method 25b remove long nonvocal events (waving)
+        """
+        line = re.sub(r'\&[\{\}]+n=(\S*)', '', line)
+        return [prevtier, line]
+
+    def m26(self):pass
+
+    def m27(self, prevtier: str, line: str):
+        """
+        method 27: remove indications for fragments, fillers, and non-words, keeping the actual items.
+        """
+        line = re.sub(r'&\+|&-|&~|&', '', line)
+        return [prevtier, line]
+
+    def m28a(self, prevtier: str, line: str):
+        """
+        method 28a: keep trailing off
+        """
+        line = re.sub(r'\+\.\.\.', '...', line)
+        line = re.sub(r'\+\.\.\?', '..?', line)
+        return [prevtier, line]
+
+    def m28b(self, prevtier: str, line: str):
+        """
+        method 28b: remove trailing off
+        """
+        line = re.sub(r'\+\.\.\.', '', line)
+        line = re.sub(r'\+\.\.\?', '', line)
+        return [prevtier, line]
+
+    def m29a(self, prevtier: str, line: str):
+        """
+        method 29a: keep exclamation question
+        """
+        line = re.sub(r'\+!?', '!?', line)
+        return [prevtier, line]
+
+    def m29b(self, prevtier: str, line: str):
+        """
+        method 29b: remove exclamation question
+        """
+        line = re.sub(r'\+!?', '?', line)
+        return [prevtier, line]
+
+    def m30(self, prevtier: str, line: str):
+        """
+        method 30: remove interuptions
+        """
+        line = re.sub(r'\+//|\+/|\+,', '', line)
+        line = re.sub(r'\+.', '.', line)
+        return [prevtier, line]
+
+    def m31(self, prevtier: str, line: str):
+        """
+        method 31: remove quotes
+        """
+        line = re.sub(r'\+"/|\+"', '', line)
+        return [prevtier, line]
+
+    def m32(self, prevtier: str, line: str):
+        """
+        method 32: remove quick uptake
+        """
+        line = re.sub(r'\+\^', '', line)
+        return [prevtier, line]
+
+    def m33(self, prevtier: str, line: str):
+        """
+        method 33: remove completion
+        """
+        line = re.sub(r'\+,|\+\+', '', line)
+        return [prevtier, line]
+
+    def m34a(self, prevtier: str, line: str):
+        """
+        method 34: keep paralinguistic material
+        """
+        line = re.sub(r'<([^>]*)> \[=! ([^\]]*)\]', r'\1 \2', line)
+        line = re.sub(r'\[=! ([^\]]*)\]', r'\1', line)
+        return [prevtier, line]
+
+    def m34b(self, prevtier: str, line: str):
+        """
+        method 34: removes paralinguistic material
+        """
+        line = re.sub(r'<([^>]*)> \[=! ([^\]]*)\]', r'\1', line)
+        line = re.sub(r'\[=! [^\]]*\]', r'', line)
+        return [prevtier, line]
+
+    def m35a(self, prevtier: str, line: str):
+        """
+        method 35a: keep stressing, essentially an exclamation mark.
+        """
+        line = re.sub(r'<([^>]*)> \[!\]', r'\1 !', line)
+        line = re.sub(r'\[(!!)\]|\[(!)\]', '!', line)
+        return [prevtier, line]
+
+    def m35b(self, prevtier: str, line: str):
+        """
+        method 35a: remove stressing, essentially an exclamation mark.
+        """
+        line = re.sub(r'<([^>]*)> \[!\]', r'\1', line)
+        line = re.sub(r'\[!!\]|\[!\]', '', line)
+        return [prevtier, line]
+
+    def m36(self, prevtier: str, line: str):
+        """
+        method 36: remove target words (when people read and make a mistake)
+        """
+        line = re.sub(r'\[= [^\]]*\]', '', line)
+        return [prevtier, line]
+
+    def m37a(self, prevtier: str, line: str):
+        """
+        method 37a: replace word (don't to do not)
+        """
+        line = re.sub(r' [\w]* \[: ([^\]]*)\]', r'\1', line)
+        return [prevtier, line]
+
+    def m37b(self, prevtier: str, line: str):
+        """
+        method 37b: remove replacement word (don't to do not), keep original
+        """
+        line = re.sub(r'\[: [^\]]*\]', '', line)
+        return [prevtier, line]
+
+    def m38(self, prevtier: str, line: str):
+        """
+        method 38: remove error notation [*]
+        """
+        line = re.sub(r'\[\*\]', '', line)
+        return [prevtier, line]
+
+    def m39(self, prevtier: str, line: str):
+        """
+        method 39: remove alternative transcription
+        """
+        line = re.sub(r'<([^>]*)> \[=\? [^\]]*\]', r'\1', line)
+        return [prevtier, line]
+
+    def m40(self, prevtier: str, line: str):
+        """
+        method 40: remove inline comments
+        """
+        line = re.sub(r'\[=% [^\]]*\]', r'', line)
+        return [prevtier, line]
+
+    def m41(self, prevtier: str, line: str):
+        """
+        method 41: remove overlapping notation <blah blah> [<] and  <blah blah> [>]
+        """
+        line = re.sub(r'<([^>]*)> \[\d*>\]', r'\1', line)
+        line = re.sub(r'<([^>]*)> \[\d*<\]', r'\1', line)
+        line = re.sub(r'\+<', r'', line)
+        return [prevtier, line]
+
+    def m42(self, prevtier: str, line: str):
+        """
+        method 42: removal of repetition notation <blah blah> [/], reformulation , retracing, etc.
+        """
+        line = re.sub(r'<([^>]*)> \[/\]', r'\1', line)
+        line = re.sub(r'<([^>]*)> \[//\]', r'\1', line)
+        line = re.sub(r'<([^>]*)> \[///\]', r'\1', line)
+        line = re.sub(r'<([^>]*)> \[e\]', r'\1', line)
+        line = re.sub(r'\[/\]', '', line)
+        line = re.sub(r'\[/-\]', '', line)
+        return [prevtier, line]
+
+    def m43(self, prevtier: str, line: str):
+        """
+        method 43: removal of postcodes (added code at the end of lines
+        """
+        line = re.sub(r'\[+ [^\]]*/\]', r'', line)
+        return [prevtier, line]
+
+    def m99a(self, prevtier:str, line:str):
+        """
+        method 99a: replace any set of more than 1 subsequent whitespace with a single whitespace.
+        """
+        line = re.sub(r'\s{2,}', ' ', line)
+        return [prevtier, line]
+
+    def m99z(self, prevtier: str, line: str):
+        """
+        method 99b: remove any text that consist solely of a single . , any number of whitspaces  and the tier
+        """
+        tier, line = line.split(':', maxsplit=1)
+        line = re.sub(r'^\s*\.\s*$', '', line)
+        line = f'{tier}{line}'
+        return [prevtier, line]
 
     def single_preprocess(self, task:str, filepath:str, code_list:list, method_list = None, print_warnings = True):
         """
@@ -108,7 +467,7 @@ class TextExtraction:
             for line in f:
                 #Loops through preprocessing steps
                 for metho in method_list:
-                    prevtier,line = self.dict_methods[metho](line,prevtier)
+                    prevtier,line = self.dict_methods[metho](prevtier,line)
                     if not line:
                         break
 
