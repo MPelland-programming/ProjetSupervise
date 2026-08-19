@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from numba.np.arrayobj import vararg_to_tuple
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import pandas as pd
@@ -47,15 +48,16 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
     ord_idx = order_idx_by_size(new_filtidx, filt_len)
     return ord_idx
 
-def vectorized_selected_ids(var4measures):
+def vectorized_selected_ids(var4measures,target_var):
     """
     :return:
-        -selected_logits
-        -batch_dix
+        -selected_logits N (between B and BxL)
+        -batch_dix       N (between B and BxL)
     """
-    logits = var4measures["logits"]
-    B, L, V = logits.shape
-    device = logits.device
+    target_var = var4measures[target_var]
+    tsiz = target_var.shape
+    B,L = tsiz[0], tsiz[1]
+    device = target_var.device
     context_lengths = var4measures["con_len"]+1 #finally accounts for BOS
     target_lengths = var4measures["utt_len"]
 
@@ -65,9 +67,10 @@ def vectorized_selected_ids(var4measures):
     mask  = (positions >= start) & (positions < end)                 # (B, L)
 
     batch_idx = torch.arange(B, dtype=torch.int64, device=device).unsqueeze(1).expand(-1, L)[mask]  # (N,)
-    selected_logits = logits[mask]
+    selected_elements = target_var[mask]
 
-    var4measures["selected_logits"] = selected_logits
+    var_name = "selected_"+target_var
+    var4measures[var_name] = selected_elements
     var4measures["batch_idx"] = batch_idx
 
     return var4measures
@@ -227,6 +230,7 @@ class SentenceScorer:
         participant_df["code"] = participant_df['code'].apply(ast.literal_eval)
 
         self.measure_list ={"sum_entropy":self.sum_entropy
+                            ,"sum_surprisal":self.sum_surprisal
                             }
 
         self.participant_df = participant_df
@@ -254,20 +258,39 @@ class SentenceScorer:
 
     def sum_entropy(self,var4measures):
         """
-        Computes the entropy of the logits.
-        :var4measures: dict with keys "logits" and "mask" with B x L X V
+        Computes the entropy of the probs.
+        :var4measures: dict with keys "selected_probs", "batch_idx", anb "batch_size"
         :return: the entropy of the logits size B
         """
-        selected_logits = var4measures["selected_logits"]
+        probs = var4measures["selected_probs"]
         batch_idx = var4measures["batch_idx"]
         B = var4measures["batch_size"]
-        device = selected_logits.device
+        device = probs.device
 
-        probs = torch.softmax(selected_logits, dim=-1)
         entropy = torch.special.entr(probs).sum(dim=-1)
 
-        result = torch.zeros(B, device=device, dtype=entropy.dtype)
+        result = torch.zeros(B, device=device)
         result.scatter_add_(0, batch_idx, entropy)
+
+        return result
+
+    def sum_surprisal(self,var4measures):
+        """
+        Computes the surprisal of the probs
+        :var4measures: dict with keys "selected_probs", "batch_idx", anb "batch_size"
+        :return: the entropy of the logits size B
+        """
+        probs = var4measures["selected_probs"]      #B x L x V
+        ids = var4measures["selected_shifted_ids"]  #B x L
+        batch_idx = var4measures["batch_idx"]
+        B = var4measures["batch_size"]
+        device = probs.device
+
+        target_ids_probs = torch.gather(probs, dim=2, index=ids.unsqueeze(-1)).squeeze()
+        surprisal = -torch.log(target_ids_probs)
+
+        result = torch.zeros(B, device=device, dtype=probs.dtype)
+        result.scatter_add_(0, batch_idx, surprisal)
 
         return result
 
@@ -382,7 +405,7 @@ class SentenceScorer:
 
         nmeasures = len(measures)
         scores = [[] for _ in range(nmeasures)]
-        file, speaker, utterance_len, context_len  = [], [], [], []
+        file, speaker, utterance_len, context_len, prop_speaker = [], [], [], [], []
 
 
         with torch.no_grad():
@@ -396,12 +419,16 @@ class SentenceScorer:
 
                 modelinputs = {"input_ids": input_ids,"attention_mask": attention_mask}
 
-                var4measures={"con_len": con_len,"utt_len": utt_len,"batch_size":batch_size}
+                var4measures={"con_len": con_len,"utt_len": utt_len,"batch_size":batch_size
+                              ,"shifted_ids": torch.roll(input_ids,-1,1)        #shape: b x tokens, shifter, x vocab
+                              ,"logits": model(**modelinputs).logits            #shape: b x tokens x vocab
+                              }
 
-                #Score using model
-                var4measures["logits"] = model(**modelinputs).logits   #shape: b x tokens x vocab
+                #Get only indices of interest and apply softmax to each.
+                var4measures = vectorized_selected_ids(var4measures,"logits")
+                var4measures["selected_probs"] = torch.softmax(var4measures["selected_logits"], dim=-1)
 
-                var4measures = vectorized_selected_ids(var4measures)
+                var4measures = vectorized_selected_ids(var4measures, "shifted_ids")
 
                 #extract measures
                 for ii, me in enumerate(measures):
@@ -411,6 +438,7 @@ class SentenceScorer:
                 speaker.extend(batch["speakers"])
                 utterance_len.extend(batch["utterance_len"])
                 context_len.extend(batch["context_len"])
+                prop_speaker.extend(batch["prop_speaker"])
 
                 #######################################################################################################
                 #######################################################################################################
@@ -422,11 +450,13 @@ class SentenceScorer:
                 #print(f"GPU allocated loop start: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
                 #print(f"GPU reserved  loop start: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
-        dict_out = {}
-        dict_out["file"] = file
-        dict_out["speaker"] = speaker
-        dict_out["ntokens"] = utterance_len
-        dict_out["lencontext"] = context_len
+        dict_out = {
+            "file": file
+            ,"speaker": speaker
+            ,"ntokens": utterance_len
+            ,"lencontext": context_len
+            ,"propspeaker": prop_speaker
+            }
 
         for ii,ms in enumerate(measures):
             dict_out[ms] = torch.cat(scores[ii]).float().numpy()
