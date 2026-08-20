@@ -92,7 +92,9 @@ if task == "count":
     num_score_jobs = myallocator.write_allocation(config)
     sbw.write_sbatch_file(num_score_jobs,config)
 
-    sbw.launch_sbatch_job(config,"submit_scoring.sh")
+    jobid = sbw.launch_sbatch_job(config,"submit_scoring.sh")
+
+
 
 if task == "score":
     tokenizer = AutoTokenizer.from_pretrained(modelname,use_fast=True, local_files_only=True)

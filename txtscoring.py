@@ -196,10 +196,8 @@ class TokenBasedSampler(torch.utils.data.Sampler[List[int]]):
     and selects indices in a way that yields batches of relatively equal sizes.
     """
     def __init__(self,idx,lengths,batch_size):
-        #As of Au 19, 2026, it is estimated that input_ids, att_mask and logits
-        #for a single item consume 2**18.4 bytes of memory.
-        #Thus, we can set a gb budget and compute how many elements B*L can contain.
-        maxsize = np.floor(2**(np.log2(batch_size)+30-18.4)) #(number of gbs * size of gb) /size for one unit
+        #Amount of memory allocated to input and output size.
+        maxsize = np.floor(2**(np.log2(batch_size)+30-3)) #(number of gbs * size of gb)/proportion of memory dedicated to data.
 
         batch_list = [[]]
         start_idx = 0
@@ -376,14 +374,23 @@ class SentenceScorer:
         else:
             return sentence_loader
 
-    def format_scores(self, df_out, aggmethod = "median", output_file="", write2file=False):
+    def format_scores(self, df_out, aggmethod = "mean", output_file="", write2file=False):
         """
         Formats the output dataframe and writes it to a csv file.
         :param df_out: the output dataframe
         :param output_file: the output file name
         :return: None
         """
-        grouped = df_out.groupby(["file", "speaker"]).agg(aggmethod).reset_index()
+        tcols = [x for x in df_out.columns if x not in ['file','speaker']]
+        aggmethod_dict = {cc: aggmethod for cc in tcols}
+        aggmethod_dict[tcols[-1]] = [aggmethod,"count"]
+        col_names = ["file","speaker"]
+        col_names.extend(tcols)
+        col_names.extend("count")
+
+        grouped = df_out.groupby(["file", "speaker"]).agg(aggmethod_dict).reset_index()
+        grouped.columns = grouped.columns.droplevel()
+        grouped.columns = col_names
 
         grouped.to_csv(output_file, index=False)
 
@@ -439,12 +446,6 @@ class SentenceScorer:
                 utterance_len.extend(batch["utterance_len"])
                 context_len.extend(batch["context_len"])
                 prop_speaker.extend(batch["prop_speaker"])
-
-                #######################################################################################################
-                #######################################################################################################
-                #                                   add prop of speaker
-                #######################################################################################################
-                #######################################################################################################
 
                 #torch.cuda.synchronize()
                 #print(f"GPU allocated loop start: {torch.cuda.memory_allocated() / 1e9:.2f} GB")

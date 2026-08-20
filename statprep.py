@@ -1,8 +1,15 @@
 #function for setting up the dataset for statistical analyses
 import pandas as pd
+import numpy as np
 
+def weighted_average(df):
+    wm = lambda x: np.average(x, weights=df.loc[x.index, "count"])
+    return wm
 
-def aggregate_time_duplicates(model_df,agg_func={"sum_entropy":"mean"}):
+def aggregate_time_duplicates(model_df,agg_func={"sum_entropy":"wmean","sum_surprisal":"wmean", "ntokens":"wmeans","lencontext":"wmeans","propspeaker":"wmeans"}):
+    for kk in agg_func.keys():
+        if agg_func[kk] == "wmean":
+            agg_func[kk] = weighted_average(model_df)
 
     agg_func["role"] = "first"
     agg_func["file"] = "first"
@@ -11,7 +18,11 @@ def aggregate_time_duplicates(model_df,agg_func={"sum_entropy":"mean"}):
 
     return grouped
 
-def aggregate_parents(model_df,agg_func={"sum_entropy":"mean"}):
+def aggregate_parents(model_df,agg_func={"sum_entropy":"wmean","sum_surprisal":"wmean", "ntokens":"wmeans","lencontext":"wmeans","propspeaker":"wmeans"}):
+    for kk in agg_func.keys():
+        if agg_func[kk] == "wmean":
+            agg_func[kk] = weighted_average(model_df)
+
     agg_func["role"] = "first"
     agg_func["file"] = "first"
 
@@ -62,7 +73,7 @@ def dependent_var_setup(model_df,min_age_gap=2,test=False):
 
         return merged
 
-def gmm_setup(model_file,time_agg="mean",parent_agg="mean",min_age_gap=2):
+def gmm_setup(model_file,time_agg="mean",parent_agg="mean",min_age_gap=3):
     """
 
     :param model_file:
@@ -73,9 +84,3 @@ def gmm_setup(model_file,time_agg="mean",parent_agg="mean",min_age_gap=2):
     grouped_df = aggregate_parents(grouped_df)
 
     return dependent_var_setup(grouped_df,min_age_gap=min_age_gap)
-
-
-
-
-
-
