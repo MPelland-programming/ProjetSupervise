@@ -27,10 +27,61 @@ class TextExtraction:
     Output: a list containing each list. The nested lists each contain one utterance.
     """
     def __init__(self,method_list=[]):
-        self.dict_methods = { "m01": self.m01
-                             ,"m02": self.m02
-                             ,"m03": self.m03
-                             ,"m04": self.m04
+        self.dict_methods = {  "m01": self.m01
+                                ,"m01b": self.m01b
+                                ,"m02": self.m02
+                                ,"m03": self.m03
+                                ,"m04a": self.m04a
+                                ,"m04b": self.m04b
+                                ,"m05": self.m05
+                                ,"m06": self.m06
+                                ,"m07": self.m07
+                               ,"m08": self.m08
+                               ,"m09": self.m09
+                               ,"m10": self.m10
+                               ,"m11": self.m11
+                               ,"m12b": self.m12b
+                               ,"m13": self.m13
+                               ,"m14": self.m14
+                               ,"m15": self.m15
+                               ,"m16": self.m16
+                               ,"m17": self.m17
+                               ,"m18": self.m18
+                               ,"m19": self.m19
+                               ,"m20a": self.m20a
+                               ,"m20b": self.m20b
+                               ,"m21": self.m21
+                               ,"m22": self.m22
+                               ,"m23": self.m23
+                               ,"m24a": self.m24a
+                               ,"m24b": self.m24b
+                               ,"m25a": self.m25a
+                               ,"m25b": self.m25b
+                               ,"m26": self.m26
+                               ,"m27": self.m27
+                               ,"m28a": self.m28a
+                               ,"m28b": self.m28b
+                               ,"m29a": self.m29a
+                               ,"m29b": self.m29b
+                               ,"m30": self.m30
+                               ,"m31": self.m31
+                               ,"m32": self.m32
+                               ,"m33": self.m33
+                               ,"m34a": self.m34a
+                               ,"m34b": self.m34b
+                               ,"m35a": self.m35a
+                               ,"m35b": self.m35b
+                               ,"m36": self.m36
+                               ,"m37a": self.m37a
+                               ,"m37b": self.m37b
+                               ,"m38": self.m38
+                               ,"m39": self.m39
+                               ,"m40": self.m40
+                               ,"m41": self.m41
+                               ,"m42": self.m42
+                               ,"m43": self.m43
+                               ,"m99a": self.m99a
+                               ,"m99z": self.m99z
                              }
         if not (type(method_list) is list):
             raise TypeError("method_list must be a list")
@@ -282,14 +333,14 @@ class TextExtraction:
         """
         method 29a: keep exclamation question
         """
-        line = re.sub(r'\+!?', '!?', line)
+        line = re.sub(r'\+!\?', '!?', line)
         return [prevtier, line]
 
     def m29b(self, prevtier: str, line: str):
         """
         method 29b: remove exclamation question
         """
-        line = re.sub(r'\+!?', '?', line)
+        line = re.sub(r'\+!\?', '?', line)
         return [prevtier, line]
 
     def m30(self, prevtier: str, line: str):
@@ -297,7 +348,7 @@ class TextExtraction:
         method 30: remove interuptions
         """
         line = re.sub(r'\+//|\+/|\+,', '', line)
-        line = re.sub(r'\+.', '.', line)
+        line = re.sub(r'\+\.', '.', line)
         return [prevtier, line]
 
     def m31(self, prevtier: str, line: str):

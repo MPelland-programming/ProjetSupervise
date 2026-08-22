@@ -5,8 +5,6 @@ import subprocess
 import txtpreprocess as txtp
 import txtscoring as txtsc
 import sbatchwriter as sbw
-from transformers import AutoTokenizer, MistralForCausalLM
-from torch import cuda
 
 ## Command line input ##
 parser = argparse.ArgumentParser(
@@ -97,6 +95,9 @@ if task == "count":
 
 
 if task == "score":
+    from transformers import AutoTokenizer, MistralForCausalLM
+    from torch import cuda
+
     tokenizer = AutoTokenizer.from_pretrained(modelname,use_fast=True, local_files_only=True)
     model = MistralForCausalLM.from_pretrained(modelname,local_files_only=True)
     #print(f"CPU RAM after load: {model.get_memory_footprint() / 1e9:.2f} GB")#####################################################

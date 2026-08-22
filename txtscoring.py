@@ -1,6 +1,4 @@
 import torch
-import torch.nn.functional as F
-from numba.np.arrayobj import vararg_to_tuple
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import pandas as pd
@@ -13,7 +11,7 @@ def order_idx_by_size(idx, lengths):
     Orders the filtered list of idx based on lengths.
     :return: updates filtdf
     """
-    order = np.argsort(lengths,descending=True)
+    order = torch.argsort(torch.tensor(lengths),descending=True).tolist()
 
     ord_idx = [idx[ii] for ii in order]
 
@@ -30,7 +28,7 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
         new_filtidx = filtidx
 
     elif turn:
-        con_filtidx = []
+        new_filtidx = []
         filt_len = []
 
         for tidx in filtidx:
@@ -39,7 +37,7 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
                 for ii in range(tidx - context_length, tidx + 1):
                     tlen += lengths[ii]
 
-                con_filtidx.append(tidx)
+                new_filtidx.append(tidx)
                 filt_len.append(tlen)
 
     else:
@@ -54,8 +52,8 @@ def vectorized_selected_ids(var4measures,target_var):
         -selected_logits N (between B and BxL)
         -batch_dix       N (between B and BxL)
     """
-    target_var = var4measures[target_var]
-    tsiz = target_var.shape
+    target_tensor = var4measures[target_var]
+    tsiz = target_tensor.shape
     B,L = tsiz[0], tsiz[1]
     device = target_var.device
     context_lengths = var4measures["con_len"]+1 #finally accounts for BOS
@@ -67,7 +65,7 @@ def vectorized_selected_ids(var4measures,target_var):
     mask  = (positions >= start) & (positions < end)                 # (B, L)
 
     batch_idx = torch.arange(B, dtype=torch.int64, device=device).unsqueeze(1).expand(-1, L)[mask]  # (N,)
-    selected_elements = target_var[mask]
+    selected_elements = target_tensor[mask]
 
     var_name = "selected_"+target_var
     var4measures[var_name] = selected_elements
@@ -121,7 +119,7 @@ class ChildesDataset(Dataset):
                 context_len = 0 #for bos token
 
                 es_ids = self.encoded_sentences["input_ids"][tidx-self.context_length:tidx+1]
-                es_len = self.encoded_sentences["input_ids"][tidx - self.context_length:tidx + 1]
+                es_len = self.encoded_sentences["length"][tidx - self.context_length:tidx + 1]
 
                 for ii,le in zip(es_ids,es_len):
                     list_utt_ids.append(ii)
@@ -131,7 +129,7 @@ class ChildesDataset(Dataset):
                 context_len -= le  #remove last length since it is the target utterance.
 
                 target_speaker = self.speakers[tidx]
-                proportion_speaker =  sum([target_speaker in ss for ss in self.speakers[tidx-self.context_length:tidx+1]])/self.context_length
+                proportion_speaker =  sum([target_speaker in ss for ss in self.speakers[tidx-self.context_length:tidx]])/self.context_length
 
             else:
                 raise NotImplementedError("Context length > 0 token based is not implemented yet.")
@@ -190,7 +188,7 @@ def collate_fn(batch):
         "proportion_speaker": prop_speaker
     }
 
-class TokenBasedSampler(torch.utils.data.Sampler[List[int]]):
+class TokenBasedSampler(torch.utils.data.Sampler):
     """
     Takes in indices for data which are sorted in descending lenght
     and selects indices in a way that yields batches of relatively equal sizes.
@@ -219,7 +217,7 @@ class TokenBasedSampler(torch.utils.data.Sampler[List[int]]):
     def __len__(self) -> int:
         return len(self.batch_list)
 
-    def __iter__(self) -> Iterator[List[int]]:
+    def __iter__(self):
         yield from self.batch_list
 
 class SentenceScorer:
@@ -278,13 +276,13 @@ class SentenceScorer:
         :var4measures: dict with keys "selected_probs", "batch_idx", anb "batch_size"
         :return: the entropy of the logits size B
         """
-        probs = var4measures["selected_probs"]      #B x L x V
-        ids = var4measures["selected_shifted_ids"]  #B x L
+        probs = var4measures["selected_probs"]      #N (1 to ntokens) x V
+        ids = var4measures["selected_shifted_ids"]  #N (1 to ntokens)
         batch_idx = var4measures["batch_idx"]
         B = var4measures["batch_size"]
         device = probs.device
 
-        target_ids_probs = torch.gather(probs, dim=2, index=ids.unsqueeze(-1)).squeeze()
+        target_ids_probs = torch.gather(probs, dim=1, index=ids.unsqueeze(-1)).squeeze()
         surprisal = -torch.log(target_ids_probs)
 
         result = torch.zeros(B, device=device, dtype=probs.dtype)
@@ -420,8 +418,8 @@ class SentenceScorer:
 
                 input_ids = batch["input_ids"].to(device, non_blocking=True)
                 attention_mask = batch["attention_mask"].to(device, non_blocking=True)
-                con_len = torch.tensor(batch["context_len"],dtype=int64).to(device, non_blocking=True)
-                utt_len = torch.tensor(batch["utterance_len"],dtype=int64).to(device, non_blocking=True)
+                con_len = torch.tensor(batch["context_len"],dtype=torch.int64).to(device, non_blocking=True)
+                utt_len = torch.tensor(batch["utterance_len"],dtype=torch.int64).to(device, non_blocking=True)
                 batch_size = batch["input_ids"].shape[0]
 
                 modelinputs = {"input_ids": input_ids,"attention_mask": attention_mask}
@@ -445,7 +443,7 @@ class SentenceScorer:
                 speaker.extend(batch["speakers"])
                 utterance_len.extend(batch["utterance_len"])
                 context_len.extend(batch["context_len"])
-                prop_speaker.extend(batch["prop_speaker"])
+                prop_speaker.extend(batch["proportion_speaker"])
 
                 #torch.cuda.synchronize()
                 #print(f"GPU allocated loop start: {torch.cuda.memory_allocated() / 1e9:.2f} GB")

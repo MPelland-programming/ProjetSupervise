@@ -6,7 +6,18 @@ def weighted_average(df):
     wm = lambda x: np.average(x, weights=df.loc[x.index, "count"])
     return wm
 
-def aggregate_time_duplicates(model_df,agg_func={"sum_entropy":"wmean","sum_surprisal":"wmean", "ntokens":"wmeans","lencontext":"wmeans","propspeaker":"wmeans"}):
+def aggregate_time_duplicates(model_df,agg_func=None):
+    if agg_func is None:
+        agg_func = {
+            "sum_entropy": "wmean",
+            "sum_surprisal": "wmean",
+            "ntokens": "wmean",       # also fixes the "wmeans" typo
+            "lencontext": "wmean",
+            "propspeaker": "wmean",
+        }
+    else:
+        agg_func = agg_func.copy()   # don't mutate the caller's dict either
+
     for kk in agg_func.keys():
         if agg_func[kk] == "wmean":
             agg_func[kk] = weighted_average(model_df)
@@ -18,7 +29,18 @@ def aggregate_time_duplicates(model_df,agg_func={"sum_entropy":"wmean","sum_surp
 
     return grouped
 
-def aggregate_parents(model_df,agg_func={"sum_entropy":"wmean","sum_surprisal":"wmean", "ntokens":"wmeans","lencontext":"wmeans","propspeaker":"wmeans"}):
+def aggregate_parents(model_df,agg_func=None):
+    if agg_func is None:
+        agg_func = {
+            "sum_entropy": "wmean",
+            "sum_surprisal": "wmean",
+            "ntokens": "wmean",       # also fixes the "wmeans" typo
+            "lencontext": "wmean",
+            "propspeaker": "wmean",
+        }
+    else:
+        agg_func = agg_func.copy()   # don't mutate the caller's dict either
+
     for kk in agg_func.keys():
         if agg_func[kk] == "wmean":
             agg_func[kk] = weighted_average(model_df)
