@@ -213,6 +213,7 @@ class TokenBasedSampler(torch.utils.data.Sampler):
             start_idx = curr_idx
 
         self.batch_list = batch_list
+        print(batch_list)
 
     def __len__(self) -> int:
         return len(self.batch_list)
