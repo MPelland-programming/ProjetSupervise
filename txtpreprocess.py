@@ -208,7 +208,7 @@ class TextExtraction:
         """
         method 13: : used to denote long vowels.
         """
-        line = re.sub(r'(?<=[A-Za-z]):(?=[A-Za-z])', '', line)
+        line = re.sub(r'(?<=[a-z]):(?=[a-z])', '', line)
         return [prevtier, line]
 
     def m14(self, prevtier:str, line:str):
@@ -223,7 +223,7 @@ class TextExtraction:
         method 15: remove tonal direction markers
         """
         line = re.sub(r'↑|↓|-!|-\?', '', line)
-        if not line.strip().endswith('.'):
+        if not line.strip().endswith(('.','?','!')):
             line = line.strip() + ' .'
         return [prevtier, line]
 
