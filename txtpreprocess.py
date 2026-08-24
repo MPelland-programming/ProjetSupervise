@@ -488,7 +488,7 @@ class TextExtraction:
         #if line.strip()[]
         tier, line = line.split(':', maxsplit=1)
         line = re.sub(r'^\s*\.\s*$', '', line)
-        line = f'{tier}{line}'
+        line = f'{tier}:{line}'
         return [prevtier, line]
 
     def single_preprocess(self, task:str, filepath:str, code_list:list, method_list = None, print_warnings = True):
@@ -520,7 +520,7 @@ class TextExtraction:
                 #Loops through preprocessing steps
                 for metho in method_list:
                     prevtier,line = self.dict_methods[metho](prevtier,line)
-                    print(line)
+                    #print(line)
                     if not line:
                         break
 
