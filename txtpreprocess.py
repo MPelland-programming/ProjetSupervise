@@ -485,6 +485,7 @@ class TextExtraction:
         """
         method 99b: remove any text that consist solely of a single . , any number of whitspaces  and the tier
         """
+        #if line.strip()[]
         tier, line = line.split(':', maxsplit=1)
         line = re.sub(r'^\s*\.\s*$', '', line)
         line = f'{tier}{line}'
@@ -519,6 +520,7 @@ class TextExtraction:
                 #Loops through preprocessing steps
                 for metho in method_list:
                     prevtier,line = self.dict_methods[metho](prevtier,line)
+                    print(line)
                     if not line:
                         break
 
