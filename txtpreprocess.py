@@ -520,7 +520,7 @@ class TextExtraction:
                 #Loops through preprocessing steps
                 for metho in method_list:
                     prevtier,line = self.dict_methods[metho](prevtier,line)
-                    #print(line)
+                    print(line)
                     if not line:
                         break
 
