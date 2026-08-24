@@ -359,7 +359,7 @@ class SentenceScorer:
                                          , pin_memory=True)
 
         elif batch_type == "ntokens":
-            batch_sampler = TokenBasedSampler(self.filtidx, self.encoded_sentences["lengths"], batch_size)
+            batch_sampler = TokenBasedSampler(self.filtidx, self.encoded_sentences["length"], batch_size)
 
             sentence_loader = DataLoader(sentence_dataset
                                          , batch_sampler=batch_sampler
