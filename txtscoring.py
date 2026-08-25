@@ -448,9 +448,9 @@ class SentenceScorer:
                 context_len.extend(batch["context_len"])
                 prop_speaker.extend(batch["proportion_speaker"])
 
-                #torch.cuda.synchronize()
-                #print(f"GPU allocated loop start: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-                #print(f"GPU reserved  loop start: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+                torch.cuda.synchronize()
+                print(f"GPU allocated : {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                print(f"GPU reserved  : {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
         dict_out = {
             "file": file
