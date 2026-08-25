@@ -55,7 +55,7 @@ def vectorized_selected_ids(var4measures,target_var):
     target_tensor = var4measures[target_var]
     tsiz = target_tensor.shape
     B,L = tsiz[0], tsiz[1]
-    device = target_var.device
+    device = target_tensor.device
     context_lengths = var4measures["con_len"]+1 #finally accounts for BOS
     target_lengths = var4measures["utt_len"]
 
