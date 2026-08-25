@@ -265,7 +265,7 @@ class SentenceScorer:
 
         entropy = torch.special.entr(probs).sum(dim=-1)
 
-        result = torch.zeros(B, device=device)
+        result = torch.zeros(B, device=device,dtype=probs.dtype)
         result.scatter_add_(0, batch_idx, entropy)
 
         return result
