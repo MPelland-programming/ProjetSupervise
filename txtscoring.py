@@ -78,7 +78,7 @@ class ChildesDataset(Dataset):
         self.files = files
         self.speakers = speakers
         self.encoded_sentences = encoded_sentences #includes
-        self.filtidx = select_and_order_idx(files, filtidx, encoded_sentences["length"], context_length=context_length, turn=turn) #selection base on whether a line has enough context.
+        self.filtidx = filtidx
         self.context_length = context_length
         self.turn = turn
         self.dtype = encoded_sentences["input_ids"][0].dtype
@@ -206,7 +206,7 @@ class TokenBasedSampler(torch.utils.data.Sampler):
             width = lengths[curr_idx]
 
             while ((curr_idx-start_idx+1)*width < maxsize) and (curr_idx < len(idx)):
-                idx_list.append(idx[curr_idx])
+                idx_list.append(curr_idx)
                 curr_idx += 1
 
             batch_list.append(idx_list)
