@@ -341,11 +341,14 @@ class SentenceScorer:
         :return:
             a Dataloader object or updates self with it.
         """
+        #update filtidx
+        selected_filtidx = select_and_order_idx(self.files, self.filtidx, self.encoded_sentences["length"], context_length=context_length,
+                                            turn=turn)  # selection base on whether a line has enough context.
 
         sentence_dataset = ChildesDataset( self.files
                                       ,self.speakers
                                       ,self.encoded_sentences
-                                      ,self.filtidx
+                                      ,selected_filtidx
                                       ,self.tokenizer
                                       ,context_length=context_length
                                       ,turn=turn
@@ -360,7 +363,7 @@ class SentenceScorer:
                                          , pin_memory=True)
 
         elif batch_type == "ntokens":
-            batch_sampler = TokenBasedSampler(self.filtidx, self.encoded_sentences["length"], batch_size)
+            batch_sampler = TokenBasedSampler(selected_filtidx, self.encoded_sentences["length"], batch_size)
 
             sentence_loader = DataLoader(sentence_dataset
                                          , batch_sampler=batch_sampler
