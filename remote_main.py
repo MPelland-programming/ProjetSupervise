@@ -114,4 +114,4 @@ if task == "score":
     }
 
     scorer.gen_dataset_and_dataloader(**dataset_params)
-    scorer.score_sentences(model,device=device, write2file=True, output_file=config["output_file"])
+    scorer.score_sentences(model, device=device, measures= config["measures"],write2file=True, output_file=config["output_file"])
