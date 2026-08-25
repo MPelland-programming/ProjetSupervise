@@ -387,7 +387,7 @@ class SentenceScorer:
         aggmethod_dict[tcols[-1]] = [aggmethod,"count"]
         col_names = ["file","speaker"]
         col_names.extend(tcols)
-        col_names.extend("count")
+        col_names.append("count")
 
         grouped = df_out.groupby(["file", "speaker"]).agg(aggmethod_dict).reset_index()
         grouped.columns = grouped.columns.droplevel()
