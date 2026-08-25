@@ -427,30 +427,37 @@ class SentenceScorer:
 
                 modelinputs = {"input_ids": input_ids,"attention_mask": attention_mask}
 
+                print("Getting logits")
                 var4measures={"con_len": con_len,"utt_len": utt_len,"batch_size":batch_size
                               ,"shifted_ids": torch.roll(input_ids,-1,1)        #shape: b x tokens, shifter, x vocab
                               ,"logits": model(**modelinputs).logits            #shape: b x tokens x vocab
                               }
+                torch.cuda.synchronize()
+                print(f"GPU allocated : {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                print(f"GPU reserved  : {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 
                 #Get only indices of interest and apply softmax to each.
+                print("Vectorize logits")
                 var4measures = vectorized_selected_ids(var4measures,"logits")
+                print("Vectorize probs")
                 var4measures["selected_probs"] = torch.softmax(var4measures["selected_logits"], dim=-1)
 
+                print("Vectorize ids")
                 var4measures = vectorized_selected_ids(var4measures, "shifted_ids")
 
                 #extract measures
                 for ii, me in enumerate(measures):
+                    print("Compute: "+me)
                     scores[ii].append(self.measure_list[me](var4measures).detach().cpu())
 
+                print("Extending")
                 file.extend(batch["files"])
                 speaker.extend(batch["speakers"])
                 utterance_len.extend(batch["utterance_len"])
                 context_len.extend(batch["context_len"])
                 prop_speaker.extend(batch["proportion_speaker"])
 
-                torch.cuda.synchronize()
-                print(f"GPU allocated : {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-                print(f"GPU reserved  : {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+
 
         dict_out = {
             "file": file
