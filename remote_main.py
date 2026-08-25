@@ -112,6 +112,6 @@ if task == "score":
         "batch_type": config["batch_type"],
         "num_workers": config["num_workers"]
     }
-    print(dataset_params)
+
     scorer.gen_dataset_and_dataloader(**dataset_params)
     scorer.score_sentences(model,device=device, write2file=True, output_file=config["output_file"])
