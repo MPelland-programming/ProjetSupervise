@@ -10,7 +10,7 @@ def aggregate_time_duplicates(model_df,agg_func=None):
     if agg_func is None:
         agg_func = {
             "sum_entropy": "wmean",
-            "sum_surprisal": "wmean",
+            #"sum_surprisal": "wmean",
             "ntokens": "wmean",       # also fixes the "wmeans" typo
             "lencontext": "wmean",
             "propspeaker": "wmean",
@@ -24,16 +24,17 @@ def aggregate_time_duplicates(model_df,agg_func=None):
 
     agg_func["role"] = "first"
     agg_func["file"] = "first"
+    agg_func["count"] = "sum"
 
     grouped = model_df.groupby(["name", "code","age_months"]).agg(agg_func).reset_index()
 
-    return grouped
+    return grouped[grouped["count"]>0].reset_index()
 
 def aggregate_parents(model_df,agg_func=None):
     if agg_func is None:
         agg_func = {
             "sum_entropy": "wmean",
-            "sum_surprisal": "wmean",
+            #"sum_surprisal": "wmean",
             "ntokens": "wmean",       # also fixes the "wmeans" typo
             "lencontext": "wmean",
             "propspeaker": "wmean",
@@ -47,6 +48,7 @@ def aggregate_parents(model_df,agg_func=None):
 
     agg_func["role"] = "first"
     agg_func["file"] = "first"
+    agg_func["count"] = "sum"
 
     model_df.loc[model_df["role"].isin(["mother", "father"]), "role"] = "parent"
 
@@ -95,7 +97,7 @@ def dependent_var_setup(model_df,min_age_gap=2,test=False):
 
         return merged
 
-def gmm_setup(model_file,time_agg="mean",parent_agg="mean",min_age_gap=3):
+def gmm_setup(model_file,time_agg="wmean",parent_agg="wmean",min_age_gap=3):
     """
 
     :param model_file:
