@@ -33,6 +33,7 @@ def aggregate_time_duplicates(model_df,agg_func=None):
 
     agg_func["role"] = "first"
     agg_func["file"] = "first"
+    agg_func["sex"] = "first"
     agg_func["count"] = "sum"
 
     grouped = model_df.groupby(["name", "code","age_months"]).agg(agg_func).reset_index()
@@ -58,6 +59,7 @@ def aggregate_parents(model_df,agg_func=None):
 
     agg_func["role"] = "first"
     agg_func["file"] = "first"
+    agg_func["sex"] = "first"
     agg_func["count"] = "sum"
 
     model_df.loc[model_df["role"].isin(["mother", "father"]), "role"] = "parent"
