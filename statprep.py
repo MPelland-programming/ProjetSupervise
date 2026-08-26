@@ -10,7 +10,7 @@ def aggregate_time_duplicates(model_df,agg_func=None):
     if agg_func is None:
         agg_func = {
             "sum_entropy": "wmean",
-            #"sum_surprisal": "wmean",
+            "sum_surprisal": "wmean",
             "ntokens": "wmean",       # also fixes the "wmeans" typo
             "lencontext": "wmean",
             "propspeaker": "wmean",
@@ -34,7 +34,7 @@ def aggregate_parents(model_df,agg_func=None):
     if agg_func is None:
         agg_func = {
             "sum_entropy": "wmean",
-            #"sum_surprisal": "wmean",
+            "sum_surprisal": "wmean",
             "ntokens": "wmean",       # also fixes the "wmeans" typo
             "lencontext": "wmean",
             "propspeaker": "wmean",
