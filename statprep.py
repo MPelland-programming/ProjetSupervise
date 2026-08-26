@@ -2,8 +2,17 @@
 import pandas as pd
 import numpy as np
 
+#def weighted_average(df):
+#    wm = lambda x: np.average(x, weights=df.loc[x.index, "count"])
+#    return wm
+
 def weighted_average(df):
-    wm = lambda x: np.average(x, weights=df.loc[x.index, "count"])
+    def wm(x):
+        w = df.loc[x.index, "count"]
+        mask = x.notna() & w.notna() & (w != 0)
+        if not mask.any() or w[mask].sum() == 0:
+            return np.nan
+        return np.average(x[mask], weights=w[mask])
     return wm
 
 def aggregate_time_duplicates(model_df,agg_func=None):
@@ -28,12 +37,13 @@ def aggregate_time_duplicates(model_df,agg_func=None):
 
     grouped = model_df.groupby(["name", "code","age_months"]).agg(agg_func).reset_index()
 
+
     return grouped[grouped["count"]>0].reset_index()
 
 def aggregate_parents(model_df,agg_func=None):
     if agg_func is None:
         agg_func = {
-            "sum_entropy": "wmean",
+            "sum_entropy": "mean",
             "sum_surprisal": "wmean",
             "ntokens": "wmean",       # also fixes the "wmeans" typo
             "lencontext": "wmean",
