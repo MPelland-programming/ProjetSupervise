@@ -102,7 +102,7 @@ class TextExtraction:
         if tier.startswith("*"):
                 return [tier, ""]
         elif tier.startswith("%flo"):
-            return ["", f"{prevtier}:{text.strip()}"]
+            return [tier, text.strip()]
 
         return ["",""]
 
@@ -112,7 +112,7 @@ class TextExtraction:
         """
         if line.startswith("*"):
             tier, text = line.split(':', maxsplit=1)
-            return ["", f"{tier}:{text.strip()}"]
+            return [tier, text.strip()]
         else:
             return ["", ""]
 
@@ -486,9 +486,7 @@ class TextExtraction:
         method 99b: remove any text that consist solely of a single . , any number of whitspaces  and the tier
         """
         #if line.strip()[]
-        tier, line = line.split(':', maxsplit=1)
         line = re.sub(r'^\s*\.\s*$', '', line)
-        line = f'{tier}:{line}'
         return [prevtier, line]
 
     def single_preprocess(self, task:str, filepath:str, code_list:list, method_list = None, print_warnings = True):
@@ -511,7 +509,7 @@ class TextExtraction:
             if method_list != sorted(method_list):
                 print("methods are not listed in ascending order, this may cause issue or inefficiency. Analyses are still carried out, but consider changing the order of the methods.")
 
-        prevtier = ""
+        tier = ""
         cleaned_text = []
         numline = 0
 
@@ -519,18 +517,17 @@ class TextExtraction:
             for line in f:
                 #Loops through preprocessing steps
                 for metho in method_list:
-                    prevtier,line = self.dict_methods[metho](prevtier,line)
-                    #print(line)
+                    tier,line = self.dict_methods[metho](prevtier,line)
                     if not line:
                         break
 
                 if line:
+                    nline = f"{tier}:{line}"
                     if task == "count":
-                        tier, _ = line.split(':', maxsplit=1)
                         if tier[1:].lower() in code_list:
                             numline += 1
                     else:
-                        cleaned_text.append(line)
+                        cleaned_text.append(nline)
 
         if task == "count":
             return numline
