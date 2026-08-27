@@ -23,7 +23,6 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
     further carries idx selection and order them by size, which includes the context.
     -filtidx list of idx filter by code
     """
-    print(min(lengths))
 
     if context_length == 0:
         filt_len = [lengths[ii] for ii in filtidx]
@@ -46,10 +45,7 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
         raise NotImplementedError("Context length > 0 token based is not implemented yet.")
 
     ord_idx,ord_len = order_idx_by_size(new_filtidx, filt_len)
-    print(ord_len[0:20])
-    print(ord_len[-1])
-    print(len(ord_idx), len(ord_len))
-    raise NameError('HiThere')
+
     return ord_idx,ord_len
 
 def vectorized_selected_ids(var4measures,target_var):
