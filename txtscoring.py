@@ -45,6 +45,9 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
         raise NotImplementedError("Context length > 0 token based is not implemented yet.")
 
     ord_idx,ord_len = order_idx_by_size(new_filtidx, filt_len)
+    print(ord_len[0:20])
+    print(len(ord_idx), len(ord_len))
+    raise NameError('HiThere')
     return ord_idx,ord_len
 
 def vectorized_selected_ids(var4measures,target_var):
