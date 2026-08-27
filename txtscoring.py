@@ -23,6 +23,7 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
     further carries idx selection and order them by size, which includes the context.
     -filtidx list of idx filter by code
     """
+    print(min(lengths))
 
     if context_length == 0:
         filt_len = [lengths[ii] for ii in filtidx]
