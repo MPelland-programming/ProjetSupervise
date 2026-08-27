@@ -205,7 +205,7 @@ class TokenBasedSampler(torch.utils.data.Sampler):
             idx_list = []
             width = lengths[curr_idx]
 
-            while ((curr_idx-start_idx+1)*width < maxsize) and (curr_idx < len(idx)):
+            while ((curr_idx-start_idx+1)*(width**2) < maxsize) and (curr_idx < len(idx)):
                 idx_list.append(curr_idx)
                 curr_idx += 1
 
