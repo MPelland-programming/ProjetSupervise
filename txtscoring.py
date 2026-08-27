@@ -14,8 +14,9 @@ def order_idx_by_size(idx, lengths):
     order = torch.argsort(torch.tensor(lengths),descending=True).tolist()
 
     ord_idx = [idx[ii] for ii in order]
+    ord_len = [lengths[ii] for ii in order]
 
-    return ord_idx
+    return ord_idx, ord_len
 
 def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
     """
@@ -43,8 +44,8 @@ def select_and_order_idx(files, filtidx, lengths, context_length=0, turn=True):
     else:
         raise NotImplementedError("Context length > 0 token based is not implemented yet.")
 
-    ord_idx = order_idx_by_size(new_filtidx, filt_len)
-    return ord_idx
+    ord_idx,ord_len = order_idx_by_size(new_filtidx, filt_len)
+    return ord_idx,ord_len
 
 def vectorized_selected_ids(var4measures,target_var):
     """
@@ -342,7 +343,7 @@ class SentenceScorer:
             a Dataloader object or updates self with it.
         """
         #update filtidx
-        selected_filtidx = select_and_order_idx(self.files, self.filtidx, self.encoded_sentences["length"], context_length=context_length,
+        selected_filtidx,selected_lengths = select_and_order_idx(self.files, self.filtidx, self.encoded_sentences["length"], context_length=context_length,
                                             turn=turn)  # selection base on whether a line has enough context.
 
         sentence_dataset = ChildesDataset( self.files
@@ -363,7 +364,7 @@ class SentenceScorer:
                                          , pin_memory=True)
 
         elif batch_type == "ntokens":
-            batch_sampler = TokenBasedSampler(selected_filtidx, self.encoded_sentences["length"], batch_size)
+            batch_sampler = TokenBasedSampler(selected_filtidx, selected_lengths, batch_size)
 
             sentence_loader = DataLoader(sentence_dataset
                                          , batch_sampler=batch_sampler
