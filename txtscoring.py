@@ -195,7 +195,7 @@ class TokenBasedSampler(torch.utils.data.Sampler):
     """
     def __init__(self,idx,lengths,batch_size):
         #Amount of memory allocated to input and output size.
-        maxsize = batch_size*128#np.floor(2**(np.log2(batch_size)+30-19)) #(number of gbs * size of gb)/proportion of memory dedicated to data and size of logits for one token.
+        maxsize = batch_size*512#np.floor(2**(np.log2(batch_size)+30-19)) #(number of gbs * size of gb)/proportion of memory dedicated to data and size of logits for one token.
 
         batch_list = []
         start_idx = 0
