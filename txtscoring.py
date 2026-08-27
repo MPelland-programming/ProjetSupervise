@@ -198,7 +198,7 @@ class TokenBasedSampler(torch.utils.data.Sampler):
     Takes in indices for data which are sorted in descending lenght
     and selects indices in a way that yields batches of relatively equal sizes.
     """
-    def __init__(self,idx,lengths,batch_size):
+    def __init__(self,lengths,batch_size):
         #Amount of memory allocated to input and output size.
         maxsize = batch_size#np.floor(2**(np.log2(batch_size)+30-19)) #(number of gbs * size of gb)/proportion of memory dedicated to data and size of logits for one token.
 
@@ -206,12 +206,12 @@ class TokenBasedSampler(torch.utils.data.Sampler):
         start_idx = 0
         curr_idx = 0
 
-        while curr_idx < len(idx):
+        while curr_idx < len(lengths):
             idx_list = []
             width = lengths[curr_idx]
             print(width)
 
-            while ((curr_idx-start_idx+1)*(width**2) < maxsize) and (curr_idx < len(idx)):
+            while ((curr_idx-start_idx+1)*(width**2) < maxsize) and (curr_idx < len(lengths)):
                 idx_list.append(curr_idx)
                 curr_idx += 1
 
@@ -368,7 +368,7 @@ class SentenceScorer:
                                          , pin_memory=True)
 
         elif batch_type == "ntokens":
-            batch_sampler = TokenBasedSampler(selected_filtidx, selected_lengths, batch_size)
+            batch_sampler = TokenBasedSampler(selected_lengths, batch_size)
 
             sentence_loader = DataLoader(sentence_dataset
                                          , batch_sampler=batch_sampler
