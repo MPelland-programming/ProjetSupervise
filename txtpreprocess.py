@@ -93,15 +93,15 @@ class TextExtraction:
             self.method_list = method_list
 
 
-    def m01(self, prevtier:str, line:str):
+    def m01(self, tier:str, line:str):
         """
         method 1: extract the %flo line from .cha. but append the code of the main tier.
         """
-        tier, text = line.split(':',maxsplit = 1)
+        curr_tier, text = line.split(':',maxsplit = 1)
 
-        if tier.startswith("*"):
-                return [tier, ""]
-        elif tier.startswith("%flo"):
+        if curr_tier.startswith("*"):
+            return [curr_tier, ""]
+        elif curr_tier.startswith("%flo"):
             return [tier, text.strip()]
 
         return ["",""]

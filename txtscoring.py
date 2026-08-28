@@ -197,7 +197,9 @@ class TokenBasedSampler(torch.utils.data.Sampler):
     """
     def __init__(self,lengths,batch_size):
         #Amount of memory allocated to input and output size.
-        maxsize = batch_size#np.floor(2**(np.log2(batch_size)+30-19)) #(number of gbs * size of gb)/proportion of memory dedicated to data and size of logits for one token.
+        # batch size is expected to be the actual amount of memory of the gpu (total, not unused),
+        # from which we remove 20 gib for the model. the 25000 is a number obtained empirically.
+        maxsize = (batch_size-20)*25000
 
         batch_list = []
         start_idx = 0
