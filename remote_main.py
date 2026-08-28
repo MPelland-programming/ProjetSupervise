@@ -77,6 +77,9 @@ else:
 ################
 ## Main part ##
 ################
+import datetime
+print(f"Starting {config["batch_size"]} at {str(datetime.datetime.now())}")
+
 modelname = "/home/mpelland/links/projects/def-eporte2/mpelland/predictability/lang_models/mistral/m7Bv03/snapshots/caa1feb0e54d415e2df31207e5f4e273e33509b1/"
 
 
@@ -115,3 +118,5 @@ if task == "score":
 
     scorer.gen_dataset_and_dataloader(**dataset_params)
     scorer.score_sentences(model, device=device, measures= config["measures"],write2file=True, output_file=config["output_file"])
+
+    print(str(datetime.datetime.now()))
