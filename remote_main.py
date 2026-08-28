@@ -78,7 +78,7 @@ else:
 ## Main part ##
 ################
 import datetime
-print(f"Starting {config["batch_size"]} at {str(datetime.datetime.now())}")
+print(f"Starting {config['batch_size']} at {str(datetime.datetime.now())}")
 
 modelname = "/home/mpelland/links/projects/def-eporte2/mpelland/predictability/lang_models/mistral/m7Bv03/snapshots/caa1feb0e54d415e2df31207e5f4e273e33509b1/"
 
