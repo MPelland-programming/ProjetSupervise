@@ -199,7 +199,7 @@ class TokenBasedSampler(torch.utils.data.Sampler):
         #Amount of memory allocated to input and output size.
         # batch size is expected to be the actual amount of memory of the gpu (total, not unused),
         # from which we remove 20 gib for the model. the 25000 is a number obtained empirically.
-        maxsize = (batch_size-20)*25000
+        maxsize = (batch_size-20)*20000
 
         batch_list = []
         start_idx = 0
@@ -399,7 +399,7 @@ class SentenceScorer:
 
         grouped.to_csv(output_file, index=False)
 
-    def score_sentences(self, model, device, aggmethod ="median", measures=["sum_entropy"],write2file=False,output_file=""):
+    def score_sentences(self, model, device, aggmethod ="mean", measures=["sum_entropy"],write2file=False,output_file=""):
         """
         Scores the sentences in self.sentence_loader using the model specified in model.
         :param model: the model to use for scoring

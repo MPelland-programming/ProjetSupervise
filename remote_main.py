@@ -12,7 +12,7 @@ import sbatchwriter as sbw
 #Fix description:
 #  -specify what batch size means
 #  -review config doc to put all configs.
-#Rename prevtier to tier.
+#Remove all special letters at the end of preprocessing.
 
 ## Command line input ##
 parser = argparse.ArgumentParser(
